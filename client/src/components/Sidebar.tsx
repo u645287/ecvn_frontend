@@ -83,7 +83,9 @@ export default function Sidebar() {
     <aside
       className={`${
         isSidebarOpen ? 'w-64' : 'w-20'
-      } bg-slate-900 text-white flex flex-col sidebar-transition relative z-20 shadow-xl shrink-0 h-screen`}
+      } bg-slate-900 text-white flex flex-col sidebar-transition relative z-20 shadow-xl shrink-0 h-screen ${
+        isSidebarOpen ? 'sidebar-open' : 'sidebar-closed'
+      }`}
     >
       {/* Logo 區域 */}
       <div className="h-16 flex items-center justify-center border-b border-slate-800">
@@ -101,11 +103,15 @@ export default function Sidebar() {
 
       {/* 導覽選單 */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
-        {navModules.map((module) => {
+        {navModules.map((module, moduleIndex) => {
           const isOpen = openModules.includes(module.id);
           
           return (
-            <div key={module.id} className="space-y-1">
+            <div
+              key={module.id}
+              className={`space-y-1 sidebar-module ${isSidebarOpen ? 'is-visible' : ''}`}
+              style={{ animationDelay: `${moduleIndex * 35}ms` }}
+            >
               {/* 大模組按鈕 */}
               <button
                 onClick={() => isSidebarOpen && toggleModule(module.id)}
@@ -121,23 +127,24 @@ export default function Sidebar() {
                   )}
                 </div>
                 {isSidebarOpen && (
-                  <i className={`fas fa-chevron-down text-xs transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                  <i className={`fas fa-chevron-down text-xs transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                 )}
               </button>
 
               {/* 子項目選單 (僅在展開且 Sidebar 開啟時顯示) */}
-              {isSidebarOpen && isOpen && (
-                <div className="ml-8 space-y-1 border-l border-slate-700 pl-2">
-                  {module.subItems.map((sub) => (
+              {isSidebarOpen && (
+                <div className={`ml-8 space-y-1 border-l border-slate-700 pl-2 sidebar-submenu ${isOpen ? 'submenu-open' : 'submenu-closed'}`}>
+                  {module.subItems.map((sub, subIndex) => (
                     <a
                       key={sub.label}
                       href="#"
                       onClick={(e: { preventDefault: () => void }) => e.preventDefault()}
-                      className={`block px-3 py-2 text-sm rounded-md transition-colors ${
+                      className={`block px-3 py-2 text-sm rounded-md transition-colors sidebar-subitem ${
                         sub.active
                           ? 'bg-blue-600/20 text-blue-400 font-bold'
                           : 'text-slate-400 hover:text-white hover:bg-slate-800'
                       }`}
+                      style={{ transitionDelay: `${subIndex * 28}ms` }}
                     >
                       {sub.label}
                     </a>

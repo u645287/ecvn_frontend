@@ -110,7 +110,50 @@
 .step-completed { border-color: #EF467E; color: #EF467E; }
 
 /* Sidebar transition */
-.sidebar-transition { transition: width 0.3s ease-in-out; }
+.sidebar-transition {
+  transition: width 0.24s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.24s ease;
+  will-change: width;
+}
+
+.sidebar-open {
+  box-shadow: 0 16px 40px rgba(2, 8, 23, 0.45);
+}
+
+.sidebar-module {
+  opacity: 0;
+  transform: translateX(-10px) scale(0.98);
+}
+
+.sidebar-open .sidebar-module.is-visible {
+  animation: sidebarModuleIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.sidebar-submenu {
+  overflow: hidden;
+  transform-origin: top;
+  transition: max-height 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease;
+}
+
+.sidebar-submenu.submenu-open {
+  max-height: 240px;
+  opacity: 1;
+}
+
+.sidebar-submenu.submenu-closed {
+  max-height: 0;
+  opacity: 0;
+}
+
+.sidebar-subitem {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: transform 0.18s ease, opacity 0.18s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.sidebar-submenu.submenu-open .sidebar-subitem {
+  opacity: 1;
+  transform: translateY(0);
+}
 
 /* Fade in animation */
 @keyframes fadeIn {
@@ -118,6 +161,17 @@
   to { opacity: 1; transform: translateY(0); }
 }
 .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+
+@keyframes sidebarModuleIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
 
 @layer components {
   .container {
