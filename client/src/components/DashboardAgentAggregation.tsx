@@ -118,7 +118,7 @@ export default function DashboardAgentAggregation() {
     <div className="animate-fadeIn">
       <div className="mb-8">
         <h2 className="text-3xl font-bold text-slate-800">代理人資源聚合管理</h2>
-        <p className="text-slate-500 mt-2">點選左側廠商可查看資產細項，右側為聚合規模對比。</p>
+        <p className="text-base text-slate-500 mt-2">點選左側廠商可查看資產細項，右側為聚合規模對比。</p>
       </div>
 
       <div className="grid grid-cols-12 gap-8">
@@ -130,31 +130,37 @@ export default function DashboardAgentAggregation() {
               className="w-full text-left bg-white rounded-xl shadow-sm border border-slate-200 hover:border-blue-500 hover:shadow-md transition-all overflow-hidden flex"
             >
               <div className="w-2 bg-slate-800" />
-              <div className="flex-1 p-5">
+              <div className="flex-1 p-6">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-bold text-slate-800">{agent.name}</h3>
-                  <span className="text-[10px] text-slate-400 font-mono">統編: {agent.taxId}</span>
+                  <h3 className="text-3xl font-bold text-slate-800">{agent.name}</h3>
+                  <span className="text-sm text-slate-500 font-mono">統編: {agent.taxId}</span>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4 mb-4">
-                  <div className="bg-yellow-50 p-2 rounded">
-                    <p className="text-[10px] text-yellow-600 font-bold uppercase">發電聚合 (A)</p>
-                    <p className="text-sm font-black text-slate-700">{agent.genCap} kW</p>
+                <div className="grid grid-cols-3 gap-4 mb-2">
+                  <div className="bg-yellow-50 p-3 rounded">
+                    <p className="text-sm text-yellow-700 font-bold uppercase">發電聚合 (A)</p>
+                    <p className="text-4xl font-black text-slate-700 leading-tight mt-1">{agent.genCap} kW</p>
+                    <p className="text-base text-slate-600 mt-2">
+                      <i className="fas fa-fingerprint mr-1" />
+                      發電電號: <b className="text-slate-800">{agent.genMeters}</b>
+                    </p>
                   </div>
-                  <div className="bg-red-50 p-2 rounded">
-                    <p className="text-[10px] text-red-600 font-bold uppercase">用電聚合 (B)</p>
-                    <p className="text-sm font-black text-slate-700">{agent.loadCap} kW</p>
+                  <div className="bg-red-50 p-3 rounded">
+                    <p className="text-sm text-red-700 font-bold uppercase">用電聚合 (B)</p>
+                    <p className="text-4xl font-black text-slate-700 leading-tight mt-1">{agent.loadCap} kW</p>
+                    <p className="text-base text-slate-600 mt-2">
+                      <i className="fas fa-plug mr-1" />
+                      用電電號: <b className="text-slate-800">{agent.loadMeters}</b>
+                    </p>
                   </div>
-                  <div className="bg-blue-50 p-2 rounded">
-                    <p className="text-[10px] text-blue-600 font-bold uppercase">儲能聚合 (C)</p>
-                    <p className="text-sm font-black text-slate-700">{agent.storageCap} kW</p>
+                  <div className="bg-blue-50 p-3 rounded">
+                    <p className="text-sm text-blue-700 font-bold uppercase">儲能聚合 (C)</p>
+                    <p className="text-4xl font-black text-slate-700 leading-tight mt-1">{agent.storageCap} kW</p>
+                    <p className="text-base text-slate-600 mt-2">
+                      <i className="fas fa-box mr-1" />
+                      儲能站: <b className="text-slate-800">{agent.bessCount}</b>
+                    </p>
                   </div>
-                </div>
-
-                <div className="flex items-center space-x-6 text-xs text-slate-500">
-                  <span><i className="fas fa-fingerprint mr-1" />發電電號: <b className="text-slate-800">{agent.genMeters}</b></span>
-                  <span><i className="fas fa-plug mr-1" />用電電號: <b className="text-slate-800">{agent.loadMeters}</b></span>
-                  <span><i className="fas fa-box mr-1" />儲能站: <b className="text-slate-800">{agent.bessCount}</b></span>
                 </div>
               </div>
               <div className="w-12 flex items-center justify-center bg-slate-50 text-slate-300">
