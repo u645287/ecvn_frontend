@@ -117,6 +117,21 @@
   animation: stepPulse 2.8s ease-in-out infinite;
 }
 
+.asset-theme-generation {
+  color: #a16207;
+  background-color: rgba(250, 204, 21, 0.14);
+}
+
+.asset-theme-load {
+  color: #b91c1c;
+  background-color: rgba(248, 113, 113, 0.14);
+}
+
+.asset-theme-storage {
+  color: #1d4ed8;
+  background-color: rgba(96, 165, 250, 0.14);
+}
+
 /* Sidebar transition */
 .sidebar-transition {
   transition: width 1.26s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 1.26s ease;
@@ -189,6 +204,127 @@
   50% {
     filter: brightness(1.12);
     box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.35), 0 0 32px rgba(251, 191, 36, 0.6);
+  }
+}
+
+.resource-marker {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  transform-origin: center;
+  transition: transform 0.25s ease, filter 0.25s ease;
+}
+
+.resource-marker__pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  opacity: 0;
+  transform: scale(0.75);
+}
+
+.resource-marker__core {
+  position: relative;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.26);
+}
+
+.resource-marker__tooltip {
+  position: absolute;
+  left: 42px;
+  top: 50%;
+  transform: translateY(-50%) scale(0.96);
+  min-width: 140px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.9);
+  color: #f8fafc;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.26);
+}
+
+.resource-marker__title {
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.resource-marker__meta {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.resource-marker.asset-theme-generation .resource-marker__core {
+  background: linear-gradient(135deg, #facc15, #f59e0b);
+}
+
+.resource-marker.asset-theme-generation .resource-marker__pulse {
+  background: rgba(250, 204, 21, 0.35);
+}
+
+.resource-marker.asset-theme-load .resource-marker__core {
+  background: linear-gradient(135deg, #fb7185, #ef4444);
+}
+
+.resource-marker.asset-theme-load .resource-marker__pulse {
+  background: rgba(248, 113, 113, 0.35);
+}
+
+.resource-marker.asset-theme-storage .resource-marker__core {
+  background: linear-gradient(135deg, #60a5fa, #2563eb);
+}
+
+.resource-marker.asset-theme-storage .resource-marker__pulse {
+  background: rgba(96, 165, 250, 0.35);
+}
+
+.resource-marker.is-active,
+.resource-marker.is-focused {
+  animation: markerCutePulse 1.5s ease-in-out infinite;
+  z-index: 20;
+}
+
+.resource-marker.is-active .resource-marker__pulse,
+.resource-marker.is-focused .resource-marker__pulse {
+  opacity: 1;
+  animation: markerPulseRing 1.5s ease-in-out infinite;
+}
+
+.resource-marker.is-active .resource-marker__tooltip,
+.resource-marker.is-focused .resource-marker__tooltip {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+
+@keyframes markerCutePulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.12);
+    filter: brightness(1.08);
+  }
+}
+
+@keyframes markerPulseRing {
+  0% {
+    transform: scale(0.75);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
   }
 }
 

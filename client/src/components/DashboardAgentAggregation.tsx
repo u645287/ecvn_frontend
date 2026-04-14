@@ -1,8 +1,14 @@
-import { useMemo, useState } from 'react';
+import { MapView } from '@/components/Map';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface AssetItem {
+  id: string;
   name: string;
   no: string;
+  address: string;
+  capacityKw: number;
+  category: 'generation' | 'load' | 'storage';
+  fallbackPosition: google.maps.LatLngLiteral;
 }
 
 interface Agent {
@@ -17,38 +23,266 @@ interface Agent {
   bessCount: number;
   genList: AssetItem[];
   loadList: AssetItem[];
-  bess: { name: string; meterNo: string };
+  storageList: AssetItem[];
 }
 
 const agents: Agent[] = [
   {
     id: 1, name: '台電綠能聚合商', taxId: '87654321', genCap: 2500, loadCap: 1500, storageCap: 1000, genMeters: 2, loadMeters: 1, bessCount: 1,
-    genList: [{ name: '南科一期光電', no: '01-1234-56' }], loadList: [{ name: '新竹總部', no: '05-4321-98' }], bess: { name: '台南大儲', meterNo: 'S-9999-01' },
+    genList: [
+      { id: 'gen-1', name: '南科一期光電', no: '01-1234-56', address: '台南市新市區南科三路17號', capacityKw: 1400, category: 'generation', fallbackPosition: { lat: 23.098, lng: 120.293 } },
+      { id: 'gen-2', name: '嘉義義竹光電', no: '01-5678-90', address: '嘉義縣義竹鄉義竹村88號', capacityKw: 1100, category: 'generation', fallbackPosition: { lat: 23.347, lng: 120.242 } },
+    ],
+    loadList: [
+      { id: 'load-1', name: '新竹總部', no: '05-4321-98', address: '新竹市東區光復路二段101號', capacityKw: 1500, category: 'load', fallbackPosition: { lat: 24.785, lng: 120.997 } },
+    ],
+    storageList: [
+      { id: 'storage-1', name: '台南大儲', no: 'S-9999-01', address: '台南市安定區港口里66號', capacityKw: 1000, category: 'storage', fallbackPosition: { lat: 23.119, lng: 120.237 } },
+    ],
   },
   {
     id: 2, name: '永續綠能科技', taxId: '12345678', genCap: 4200, loadCap: 2000, storageCap: 2000, genMeters: 5, loadMeters: 1, bessCount: 2,
-    genList: [{ name: '雲林光電群', no: '03-1111-22' }], loadList: [{ name: '中壢工廠', no: '06-5555-66' }], bess: { name: '桃園一號', meterNo: 'S-8888-02' },
+    genList: [
+      { id: 'gen-3', name: '雲林光電群', no: '03-1111-22', address: '雲林縣麥寮鄉雲林路一段16號', capacityKw: 2400, category: 'generation', fallbackPosition: { lat: 23.789, lng: 120.257 } },
+      { id: 'gen-4', name: '彰濱日照場', no: '03-2222-33', address: '彰化縣線西鄉彰濱工業區12號', capacityKw: 1800, category: 'generation', fallbackPosition: { lat: 24.127, lng: 120.448 } },
+    ],
+    loadList: [
+      { id: 'load-2', name: '中壢工廠', no: '06-5555-66', address: '桃園市中壢區中華路一段12號', capacityKw: 2000, category: 'load', fallbackPosition: { lat: 24.965, lng: 121.223 } },
+    ],
+    storageList: [
+      { id: 'storage-2', name: '桃園一號', no: 'S-8888-02', address: '桃園市觀音區大潭里18號', capacityKw: 1200, category: 'storage', fallbackPosition: { lat: 25.035, lng: 121.051 } },
+      { id: 'storage-3', name: '桃園二號', no: 'S-8888-03', address: '桃園市新屋區文化路99號', capacityKw: 800, category: 'storage', fallbackPosition: { lat: 24.972, lng: 121.105 } },
+    ],
   },
   {
     id: 3, name: '城市太陽能管理', taxId: '22334455', genCap: 800, loadCap: 800, storageCap: 0, genMeters: 1, loadMeters: 1, bessCount: 0,
-    genList: [{ name: '台北公有屋頂', no: '01-3333-44' }], loadList: [{ name: '市府大樓', no: '05-6666-77' }], bess: { name: '無', meterNo: 'N/A' },
+    genList: [
+      { id: 'gen-5', name: '台北公有屋頂', no: '01-3333-44', address: '台北市信義區市府路1號', capacityKw: 800, category: 'generation', fallbackPosition: { lat: 25.037, lng: 121.563 } },
+    ],
+    loadList: [
+      { id: 'load-3', name: '市府大樓', no: '05-6666-77', address: '台北市信義區松智路5號', capacityKw: 800, category: 'load', fallbackPosition: { lat: 25.034, lng: 121.566 } },
+    ],
+    storageList: [],
   },
   {
     id: 4, name: '全球碳中和顧問', taxId: '99887766', genCap: 1500, loadCap: 1200, storageCap: 500, genMeters: 3, loadMeters: 1, bessCount: 1,
-    genList: [{ name: '高雄一廠光電', no: '07-7777-88' }], loadList: [{ name: '數據中心', no: '08-9999-00' }], bess: { name: '高雄微電網', meterNo: 'S-7777-04' },
+    genList: [
+      { id: 'gen-6', name: '高雄一廠光電', no: '07-7777-88', address: '高雄市岡山區本工東一路8號', capacityKw: 1500, category: 'generation', fallbackPosition: { lat: 22.797, lng: 120.296 } },
+    ],
+    loadList: [
+      { id: 'load-4', name: '數據中心', no: '08-9999-00', address: '高雄市前鎮區復興四路20號', capacityKw: 1200, category: 'load', fallbackPosition: { lat: 22.606, lng: 120.307 } },
+    ],
+    storageList: [
+      { id: 'storage-4', name: '高雄微電網', no: 'S-7777-04', address: '高雄市路竹區環球路88號', capacityKw: 500, category: 'storage', fallbackPosition: { lat: 22.864, lng: 120.258 } },
+    ],
   },
   {
     id: 5, name: '智慧電網儲能系統', taxId: '55443322', genCap: 3000, loadCap: 2500, storageCap: 3000, genMeters: 1, loadMeters: 1, bessCount: 5,
-    genList: [{ name: '大容量離岸風', no: '09-1234-99' }], loadList: [{ name: '竹科晶圓廠', no: '10-2222-11' }], bess: { name: '連鎖儲能', meterNo: 'S-6666-05' },
+    genList: [
+      { id: 'gen-7', name: '大容量離岸風', no: '09-1234-99', address: '苗栗縣通霄鎮海濱路89號', capacityKw: 3000, category: 'generation', fallbackPosition: { lat: 24.495, lng: 120.676 } },
+    ],
+    loadList: [
+      { id: 'load-5', name: '竹科晶圓廠', no: '10-2222-11', address: '新竹市東區力行一路1號', capacityKw: 2500, category: 'load', fallbackPosition: { lat: 24.780, lng: 121.000 } },
+    ],
+    storageList: [
+      { id: 'storage-5', name: '連鎖儲能 A', no: 'S-6666-05', address: '新竹縣寶山鄉雙園路168號', capacityKw: 1200, category: 'storage', fallbackPosition: { lat: 24.737, lng: 120.988 } },
+      { id: 'storage-6', name: '連鎖儲能 B', no: 'S-6666-06', address: '新竹縣湖口鄉文化路66號', capacityKw: 1800, category: 'storage', fallbackPosition: { lat: 24.902, lng: 121.044 } },
+    ],
   },
 ];
 
+type MarkerRecord = {
+  marker: google.maps.marker.AdvancedMarkerElement;
+  element: HTMLDivElement;
+  asset: AssetItem;
+};
+
+function getAssetMeta(category: AssetItem['category']) {
+  if (category === 'generation') {
+    return { title: 'Account A 發電資產', icon: 'fas fa-sun', className: 'asset-theme-generation', shortLabel: 'A' };
+  }
+  if (category === 'load') {
+    return { title: 'Account B 用電資產', icon: 'fas fa-building', className: 'asset-theme-load', shortLabel: 'B' };
+  }
+  return { title: 'Account C 儲能調節', icon: 'fas fa-battery-full', className: 'asset-theme-storage', shortLabel: 'C' };
+}
+
+function createMarkerContent(asset: AssetItem) {
+  const meta = getAssetMeta(asset.category);
+  const markerEl = document.createElement('div');
+  markerEl.className = `resource-marker ${meta.className}`;
+  markerEl.innerHTML = `
+    <div class="resource-marker__pulse"></div>
+    <div class="resource-marker__core">
+      <i class="${meta.icon}"></i>
+    </div>
+    <div class="resource-marker__tooltip">
+      <div class="resource-marker__title">${asset.name}</div>
+      <div class="resource-marker__meta">${asset.capacityKw} kW</div>
+    </div>
+  `;
+  return markerEl;
+}
+
+function AssetCard({
+  asset,
+  active,
+  onHover,
+  onLeave,
+  onClick,
+}: {
+  asset: AssetItem;
+  active: boolean;
+  onHover: () => void;
+  onLeave: () => void;
+  onClick: () => void;
+}) {
+  const meta = getAssetMeta(asset.category);
+
+  return (
+    <button
+      type="button"
+      onMouseEnter={onHover}
+      onMouseLeave={onLeave}
+      onFocus={onHover}
+      onBlur={onLeave}
+      onClick={onClick}
+      className={`w-full text-left p-4 rounded-xl border transition-all duration-300 ${
+        active
+          ? 'border-blue-400 bg-white shadow-lg scale-[1.01]'
+          : 'border-slate-200 bg-slate-50 hover:bg-white hover:border-slate-300'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-lg font-bold text-slate-800">{asset.name}</p>
+          <p className="text-sm text-slate-500 mt-1">{asset.no}</p>
+        </div>
+        <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold ${meta.className}`}>
+          <i className={meta.icon} />
+          {meta.shortLabel}
+        </span>
+      </div>
+      <div className="mt-4 space-y-2 text-sm">
+        <p className="text-slate-600"><span className="font-bold text-slate-700">容量：</span>{asset.capacityKw} kW</p>
+        <p className="text-slate-600"><span className="font-bold text-slate-700">地址：</span>{asset.address}</p>
+        <p className="text-slate-600"><span className="font-bold text-slate-700">資產類型：</span>{meta.title}</p>
+      </div>
+    </button>
+  );
+}
+
 export default function DashboardAgentAggregation() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [hoveredAssetId, setHoveredAssetId] = useState<string | null>(null);
+  const [focusedAssetId, setFocusedAssetId] = useState<string | null>(null);
+  const [resolvedPositions, setResolvedPositions] = useState<Record<string, google.maps.LatLngLiteral>>({});
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const markersRef = useRef<Map<string, MarkerRecord>>(new Map());
+  const geocodeCacheRef = useRef<Record<string, google.maps.LatLngLiteral>>({});
   const maxTotal = useMemo(
     () => Math.max(...agents.map((agent) => agent.genCap + agent.loadCap + agent.storageCap)),
     []
   );
+  const selectedAgentAssets = useMemo(
+    () => (selectedAgent ? [...selectedAgent.genList, ...selectedAgent.loadList, ...selectedAgent.storageList] : []),
+    [selectedAgent]
+  );
+  const highlightedAssetId = hoveredAssetId ?? focusedAssetId;
+
+  useEffect(() => {
+    if (!selectedAgent) {
+      setHoveredAssetId(null);
+      setFocusedAssetId(null);
+      setResolvedPositions({});
+    }
+  }, [selectedAgent]);
+
+  useEffect(() => {
+    if (!selectedAgent || !mapRef.current || !window.google?.maps) return;
+
+    let cancelled = false;
+    const geocoder = new window.google.maps.Geocoder();
+
+    const resolveAll = async () => {
+      const entries = await Promise.all(
+        selectedAgentAssets.map(async (asset) => {
+          if (geocodeCacheRef.current[asset.id]) {
+            return [asset.id, geocodeCacheRef.current[asset.id]] as const;
+          }
+
+          try {
+            const result = await geocoder.geocode({ address: asset.address });
+            const first = result.results?.[0];
+            const location = first
+              ? { lat: first.geometry.location.lat(), lng: first.geometry.location.lng() }
+              : asset.fallbackPosition;
+            geocodeCacheRef.current[asset.id] = location;
+            return [asset.id, location] as const;
+          } catch {
+            geocodeCacheRef.current[asset.id] = asset.fallbackPosition;
+            return [asset.id, asset.fallbackPosition] as const;
+          }
+        })
+      );
+
+      if (!cancelled) {
+        setResolvedPositions(Object.fromEntries(entries));
+      }
+    };
+
+    resolveAll();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAgent, selectedAgentAssets]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !selectedAgent || !window.google?.maps?.marker) return;
+
+    markersRef.current.forEach(({ marker }) => {
+      marker.map = null;
+    });
+    markersRef.current.clear();
+
+    const bounds = new window.google.maps.LatLngBounds();
+
+    selectedAgentAssets.forEach((asset) => {
+      const position = resolvedPositions[asset.id] ?? asset.fallbackPosition;
+      const element = createMarkerContent(asset);
+      const marker = new window.google.maps.marker.AdvancedMarkerElement({
+        map,
+        position,
+        title: asset.name,
+        content: element,
+      });
+
+      element.addEventListener('mouseenter', () => setHoveredAssetId(asset.id));
+      element.addEventListener('mouseleave', () => setHoveredAssetId((prev) => (prev === asset.id ? null : prev)));
+      element.addEventListener('click', () => setFocusedAssetId(asset.id));
+
+      markersRef.current.set(asset.id, { marker, element, asset });
+      bounds.extend(position);
+    });
+
+    if (!bounds.isEmpty()) {
+      map.fitBounds(bounds, 80);
+    }
+  }, [selectedAgent, selectedAgentAssets, resolvedPositions]);
+
+  useEffect(() => {
+    markersRef.current.forEach(({ element, asset, marker }) => {
+      const isActive = highlightedAssetId === asset.id;
+      const isFocused = focusedAssetId === asset.id;
+      element.classList.toggle('is-active', isActive);
+      element.classList.toggle('is-focused', isFocused);
+
+      if (isActive && marker.position && mapRef.current) {
+        mapRef.current.panTo(marker.position as google.maps.LatLng | google.maps.LatLngLiteral);
+      }
+    });
+  }, [highlightedAssetId, focusedAssetId]);
 
   if (selectedAgent) {
     return (
@@ -81,10 +315,14 @@ export default function DashboardAgentAggregation() {
               <span>Account A 發電資產</span>
             </div>
             {selectedAgent.genList.map((gen) => (
-              <div key={gen.no} className="p-4 bg-slate-50 rounded-lg border">
-                <p className="font-bold text-slate-700">{gen.name}</p>
-                <p className="text-xs text-slate-400 mt-1">電號：{gen.no}</p>
-              </div>
+              <AssetCard
+                key={gen.id}
+                asset={gen}
+                active={highlightedAssetId === gen.id}
+                onHover={() => setHoveredAssetId(gen.id)}
+                onLeave={() => setHoveredAssetId((prev) => (prev === gen.id ? null : prev))}
+                onClick={() => setFocusedAssetId(gen.id)}
+              />
             ))}
           </div>
           <div className="space-y-4">
@@ -93,10 +331,14 @@ export default function DashboardAgentAggregation() {
               <span>Account B 用電資產</span>
             </div>
             {selectedAgent.loadList.map((load) => (
-              <div key={load.no} className="p-4 bg-slate-50 rounded-lg border">
-                <p className="font-bold text-slate-700">{load.name}</p>
-                <p className="text-xs text-slate-400 mt-1">電號：{load.no}</p>
-              </div>
+              <AssetCard
+                key={load.id}
+                asset={load}
+                active={highlightedAssetId === load.id}
+                onHover={() => setHoveredAssetId(load.id)}
+                onLeave={() => setHoveredAssetId((prev) => (prev === load.id ? null : prev))}
+                onClick={() => setFocusedAssetId(load.id)}
+              />
             ))}
           </div>
           <div className="space-y-4">
@@ -104,10 +346,49 @@ export default function DashboardAgentAggregation() {
               <i className="fas fa-battery-full" />
               <span>Account C 儲能調節</span>
             </div>
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="font-bold text-blue-800">{selectedAgent.bess.name}</p>
-              <p className="text-xs text-blue-600 mt-1 italic">光儲表號：{selectedAgent.bess.meterNo}</p>
+            {selectedAgent.storageList.length > 0 ? (
+              selectedAgent.storageList.map((storage) => (
+                <AssetCard
+                  key={storage.id}
+                  asset={storage}
+                  active={highlightedAssetId === storage.id}
+                  onHover={() => setHoveredAssetId(storage.id)}
+                  onLeave={() => setHoveredAssetId((prev) => (prev === storage.id ? null : prev))}
+                  onClick={() => setFocusedAssetId(storage.id)}
+                />
+              ))
+            ) : (
+              <div className="p-4 bg-slate-50 rounded-lg border border-dashed text-slate-400">
+                目前無儲能調節資產
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-10">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-2xl font-black text-slate-800">資源地理位置總覽</h3>
+              <p className="text-slate-500 mt-1">地圖會同步顯示 A / B / C 三類資產位置，卡片與地圖標記可雙向互動。</p>
             </div>
+            {highlightedAssetId && (
+              <div className="text-right">
+                <p className="text-sm text-slate-500">目前高亮資源</p>
+                <p className="text-lg font-bold text-blue-700">
+                  {selectedAgentAssets.find((asset) => asset.id === highlightedAssetId)?.name}
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="rounded-3xl overflow-hidden border border-slate-200 shadow-sm">
+            <MapView
+              className="h-[520px]"
+              initialCenter={selectedAgentAssets[0]?.fallbackPosition ?? { lat: 23.7, lng: 120.9 }}
+              initialZoom={8}
+              onMapReady={(map) => {
+                mapRef.current = map;
+              }}
+            />
           </div>
         </div>
       </div>
