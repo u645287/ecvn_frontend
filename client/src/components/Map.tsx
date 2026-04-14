@@ -93,8 +93,9 @@ export function MapView({
       }).addTo(map.current);
 
       setMapError(null);
-      if (onMapReady) {
-        onMapReady(map.current);
+      const initializedMap = map.current;
+      if (onMapReady && initializedMap) {
+        onMapReady(initializedMap);
       }
     } catch (error) {
       const message =
