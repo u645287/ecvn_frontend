@@ -1,6 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import L, { type Map as LeafletMap } from "leaflet";
-import "leaflet/dist/leaflet.css";
 import { usePersistFn } from "@/hooks/usePersistFn";
 import { cn } from "@/lib/utils";
 
@@ -9,11 +7,53 @@ export interface LatLngLiteral {
   lng: number;
 }
 
+export type LeafletMapLike = {
+  remove: () => void;
+  panTo: (latlng: unknown) => void;
+  fitBounds: (bounds: unknown, options?: unknown) => void;
+};
+
+declare global {
+  interface Window {
+    L?: any;
+  }
+}
+
+function loadLeafletAssets() {
+  if (window.L) return Promise.resolve(window.L);
+
+  const cssId = "leaflet-cdn-css";
+  if (!document.getElementById(cssId)) {
+    const link = document.createElement("link");
+    link.id = cssId;
+    link.rel = "stylesheet";
+    link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+    document.head.appendChild(link);
+  }
+
+  return new Promise<any>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>('script[data-leaflet-cdn="true"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(window.L));
+      existing.addEventListener("error", () => reject(new Error("Leaflet CDN 載入失敗")));
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    script.async = true;
+    script.dataset.leafletCdn = "true";
+    script.onload = () => resolve(window.L);
+    script.onerror = () => reject(new Error("Leaflet CDN 載入失敗"));
+    document.head.appendChild(script);
+  });
+}
+
 interface MapViewProps {
   className?: string;
   initialCenter?: LatLngLiteral;
   initialZoom?: number;
-  onMapReady?: (map: LeafletMap) => void;
+  onMapReady?: (map: LeafletMapLike) => void;
 }
 
 export function MapView({
@@ -23,7 +63,7 @@ export function MapView({
   onMapReady,
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<LeafletMap | null>(null);
+  const map = useRef<LeafletMapLike | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
 
   const init = usePersistFn(async () => {
@@ -36,6 +76,11 @@ export function MapView({
       if (map.current) {
         map.current.remove();
         map.current = null;
+      }
+
+      const L = await loadLeafletAssets();
+      if (!L) {
+        throw new Error("Leaflet 物件初始化失敗");
       }
 
       map.current = L.map(mapContainer.current, {

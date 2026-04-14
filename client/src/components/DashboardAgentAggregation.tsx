@@ -1,6 +1,11 @@
-import { MapView, type LatLngLiteral } from '@/components/Map';
-import L, { type DivIcon, type Map as LeafletMap, type Marker as LeafletMarker } from 'leaflet';
+import { MapView, type LatLngLiteral, type LeafletMapLike } from '@/components/Map';
 import { useEffect, useMemo, useRef, useState } from 'react';
+
+declare global {
+  interface Window {
+    L?: any;
+  }
+}
 
 interface AssetItem {
   id: string;
@@ -93,8 +98,8 @@ const agents: Agent[] = [
 ];
 
 type MarkerRecord = {
-  marker: LeafletMarker;
-  icon: DivIcon;
+  marker: any;
+  icon: any;
   asset: AssetItem;
 };
 
@@ -206,7 +211,7 @@ export default function DashboardAgentAggregation() {
   const [hoveredAssetId, setHoveredAssetId] = useState<string | null>(null);
   const [focusedAssetId, setFocusedAssetId] = useState<string | null>(null);
   const [resolvedPositions, setResolvedPositions] = useState<Record<string, LatLngLiteral>>({});
-  const mapRef = useRef<LeafletMap | null>(null);
+  const mapRef = useRef<LeafletMapLike | null>(null);
   const markersRef = useRef<Map<string, MarkerRecord>>(new Map());
   const geocodeCacheRef = useRef<Record<string, LatLngLiteral>>({});
   const maxTotal = useMemo(
@@ -259,7 +264,8 @@ export default function DashboardAgentAggregation() {
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !selectedAgent) return;
+    const L = window.L;
+    if (!map || !selectedAgent || !L) return;
 
     markersRef.current.forEach(({ marker }) => {
       marker.remove();
