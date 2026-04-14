@@ -133,13 +133,13 @@ export default function DashboardAgentAggregation() {
               <div className="flex-1 p-6">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-3xl font-bold text-slate-800">{agent.name}</h3>
-                  <span className="text-sm text-slate-500 font-mono">統編: {agent.taxId}</span>
+                  <span className="text-xl text-slate-500 font-mono">統編: {agent.taxId}</span>
                 </div>
 
                 <div className="grid grid-cols-3 gap-4 mb-2">
                   <div className="bg-yellow-50 p-3 rounded">
                     <p className="text-sm text-yellow-700 font-bold uppercase">發電聚合 (A)</p>
-                    <p className="text-4xl font-black text-slate-700 leading-tight mt-1">{agent.genCap} kW</p>
+                    <p className="text-2xl font-black text-slate-700 leading-tight mt-1">{agent.genCap} kW</p>
                     <p className="text-base text-slate-600 mt-2">
                       <i className="fas fa-fingerprint mr-1" />
                       發電電號: <b className="text-slate-800">{agent.genMeters}</b>
@@ -147,7 +147,7 @@ export default function DashboardAgentAggregation() {
                   </div>
                   <div className="bg-red-50 p-3 rounded">
                     <p className="text-sm text-red-700 font-bold uppercase">用電聚合 (B)</p>
-                    <p className="text-4xl font-black text-slate-700 leading-tight mt-1">{agent.loadCap} kW</p>
+                    <p className="text-2xl font-black text-slate-700 leading-tight mt-1">{agent.loadCap} kW</p>
                     <p className="text-base text-slate-600 mt-2">
                       <i className="fas fa-plug mr-1" />
                       用電電號: <b className="text-slate-800">{agent.loadMeters}</b>
@@ -155,7 +155,7 @@ export default function DashboardAgentAggregation() {
                   </div>
                   <div className="bg-blue-50 p-3 rounded">
                     <p className="text-sm text-blue-700 font-bold uppercase">儲能聚合 (C)</p>
-                    <p className="text-4xl font-black text-slate-700 leading-tight mt-1">{agent.storageCap} kW</p>
+                    <p className="text-2xl font-black text-slate-700 leading-tight mt-1">{agent.storageCap} kW</p>
                     <p className="text-base text-slate-600 mt-2">
                       <i className="fas fa-box mr-1" />
                       儲能站: <b className="text-slate-800">{agent.bessCount}</b>
