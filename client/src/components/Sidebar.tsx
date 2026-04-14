@@ -3,8 +3,9 @@ import { useRegistration } from '@/contexts/RegistrationContext';
 
 // 定義導覽資料結構
 interface SubItem {
+  id: string;
   label: string;
-  active?: boolean;
+  view?: 'registration' | 'dashboard-agent-aggregation';
 }
 
 interface ModuleItem {
@@ -18,60 +19,68 @@ const navModules: ModuleItem[] = [
   {
     id: 'registration',
     icon: 'fas fa-user-plus',
-    label: '註冊作業',
+    label: '1. 註冊作業',
     subItems: [
-      { label: '1.1 註冊申請', active: true },
-      { label: '1.2 能力測試' },
-      { label: '1.3 保證金' },
-      { label: '1.4 上線' },
+      { id: 'reg-1-1', label: '1.1 註冊申請', view: 'registration' },
+      { id: 'reg-1-2', label: '1.2 能力測試' },
+      { id: 'reg-1-3', label: '1.3 保證金' },
+      { id: 'reg-1-4', label: '1.4 上線' },
+    ],
+  },
+  {
+    id: 'dashboard',
+    icon: 'fas fa-gauge-high',
+    label: '2. 儀錶板',
+    subItems: [
+      { id: 'dash-2-1', label: '2.1 代理人資源聚合管理', view: 'dashboard-agent-aggregation' },
     ],
   },
   {
     id: 'bidding',
     icon: 'fas fa-gavel',
-    label: '競價作業',
+    label: '3. 競價作業',
     subItems: [
-      { label: '2.1 負載預測' },
-      { label: '2.2 報價' },
-      { label: '2.3 COP' },
-      { label: '2.4 公告' },
+      { id: 'bid-3-1', label: '3.1 負載預測' },
+      { id: 'bid-3-2', label: '3.2 報價' },
+      { id: 'bid-3-3', label: '3.3 COP' },
+      { id: 'bid-3-4', label: '3.4 公告' },
     ],
   },
   {
     id: 'settlement',
     icon: 'fas fa-file-invoice-dollar',
-    label: '結算作業',
+    label: '4. 結算作業',
     subItems: [
-      { label: '3.1 預結算' },
-      { label: '3.2 月結算' },
+      { id: 'set-4-1', label: '4.1 預結算' },
+      { id: 'set-4-2', label: '4.2 月結算' },
     ],
   },
   {
     id: 'monitoring',
     icon: 'fas fa-shield-alt',
-    label: '監管作業',
+    label: '5. 監管作業',
     subItems: [
-      { label: '4.1 市場流程監控' },
-      { label: '4.2 市場監控儀表板' },
+      { id: 'mon-5-1', label: '5.1 市場流程監控' },
+      { id: 'mon-5-2', label: '5.2 市場監控儀表板' },
     ],
   },
   {
     id: 'others',
     icon: 'fas fa-cog',
-    label: '其他作業',
+    label: '6. 其他作業',
     subItems: [
-      { label: '5.1 通知' },
-      { label: '5.2 系統管理' },
-      { label: '5.3 網站管理' },
-      { label: '5.4 通訊資料' },
+      { id: 'oth-6-1', label: '6.1 通知' },
+      { id: 'oth-6-2', label: '6.2 系統管理' },
+      { id: 'oth-6-3', label: '6.3 網站管理' },
+      { id: 'oth-6-4', label: '6.4 通訊資料' },
     ],
   },
 ];
 
 export default function Sidebar() {
-  const { isSidebarOpen } = useRegistration();
+  const { isSidebarOpen, currentView, setCurrentView } = useRegistration();
   // 控制哪些模組是展開的
-  const [openModules, setOpenModules] = useState<string[]>(['registration']);
+  const [openModules, setOpenModules] = useState<string[]>(['registration', 'dashboard']);
 
   const toggleModule = (id: string) => {
     setOpenModules((prev: string[]) =>
@@ -139,11 +148,14 @@ export default function Sidebar() {
               >
                   {module.subItems.map((sub, subIndex) => (
                     <a
-                      key={sub.label}
+                      key={sub.id}
                       href="#"
-                      onClick={(e: { preventDefault: () => void }) => e.preventDefault()}
+                      onClick={(e: { preventDefault: () => void }) => {
+                        e.preventDefault();
+                        if (sub.view) setCurrentView(sub.view);
+                      }}
                       className={`block px-3 py-2 text-sm rounded-md transition-colors sidebar-subitem ${
-                        sub.active
+                        sub.view === currentView
                           ? 'bg-blue-600/20 text-blue-400 font-bold'
                           : 'text-slate-400 hover:text-white hover:bg-slate-800'
                       }`}

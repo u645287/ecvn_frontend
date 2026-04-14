@@ -32,7 +32,10 @@ function StepIndicator({ stepNum, label, currentStep }: StepIndicatorProps) {
 }
 
 export default function Header() {
-  const { step, isSidebarOpen, setIsSidebarOpen } = useRegistration();
+  const { step, isSidebarOpen, setIsSidebarOpen, currentView } = useRegistration();
+  const title = currentView === 'dashboard-agent-aggregation'
+    ? '2.1 代理人資源聚合管理'
+    : getStepTitle(step);
 
   return (
     <header className="h-16 bg-white shadow-sm flex items-center justify-between px-6 sticky top-0 z-10 shrink-0">
@@ -43,16 +46,18 @@ export default function Header() {
         >
           <i className="fas fa-bars text-xl" />
         </button>
-        <h2 className="text-xl font-bold text-slate-800">{getStepTitle(step)}</h2>
+        <h2 className="text-xl font-bold text-slate-800">{title}</h2>
       </div>
 
-      <div className="hidden md:flex items-center space-x-2 text-sm font-bold">
-        <StepIndicator stepNum={1} label="基本資料" currentStep={step} />
-        <div className={`w-8 border-t-2 ${step >= 2 ? 'border-emerald-500' : 'border-slate-200'}`} />
-        <StepIndicator stepNum={2} label="綁定契約 (發/用)" currentStep={step} />
-        <div className={`w-8 border-t-2 ${step >= 3 ? 'border-emerald-500' : 'border-slate-200'}`} />
-        <StepIndicator stepNum={3} label="綁定儲能" currentStep={step} />
-      </div>
+      {currentView === 'registration' && (
+        <div className="hidden md:flex items-center space-x-2 text-sm font-bold">
+          <StepIndicator stepNum={1} label="基本資料" currentStep={step} />
+          <div className={`w-8 border-t-2 ${step >= 2 ? 'border-emerald-500' : 'border-slate-200'}`} />
+          <StepIndicator stepNum={2} label="綁定契約 (發/用)" currentStep={step} />
+          <div className={`w-8 border-t-2 ${step >= 3 ? 'border-emerald-500' : 'border-slate-200'}`} />
+          <StepIndicator stepNum={3} label="綁定儲能" currentStep={step} />
+        </div>
+      )}
     </header>
   );
 }

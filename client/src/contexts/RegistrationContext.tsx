@@ -5,6 +5,7 @@ interface RegistrationState {
   // UI 狀態
   isSidebarOpen: boolean;
   step: number;
+  currentView: 'registration' | 'dashboard-agent-aggregation';
   syncBusinessData: boolean;
 
   // Step 1
@@ -27,6 +28,7 @@ interface RegistrationState {
 interface RegistrationActions {
   setIsSidebarOpen: (open: boolean) => void;
   setStep: (step: number) => void;
+  setCurrentView: (view: 'registration' | 'dashboard-agent-aggregation') => void;
   setSyncBusinessData: (sync: boolean) => void;
   setAppInfo: (info: Partial<AppInfo>) => void;
 
@@ -65,6 +67,7 @@ const createEmptyStorage = (): StorageDevice => ({
 export function RegistrationProvider({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [step, setStep] = useState(1);
+  const [currentView, setCurrentView] = useState<'registration' | 'dashboard-agent-aggregation'>('registration');
   const [syncBusinessData, setSyncBusinessData] = useState(true);
 
   const [appInfo, setAppInfoState] = useState<AppInfo>({
@@ -193,10 +196,10 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
   }, [tempStorage, editStorageIndex]);
 
   const value: RegistrationState & RegistrationActions = {
-    isSidebarOpen, step, syncBusinessData,
+    isSidebarOpen, step, currentView, syncBusinessData,
     appInfo, contracts, isContractModalOpen, isVerifying, editContractIndex, tempContract,
     storages, isStorageModalOpen, editStorageIndex, tempStorage,
-    setIsSidebarOpen, setStep, setSyncBusinessData, setAppInfo,
+    setIsSidebarOpen, setStep, setCurrentView, setSyncBusinessData, setAppInfo,
     openContractModal, editContract, deleteContract, closeContractModal,
     setTempContract, setTempContractDbData, setIsVerifying,
     saveAndNextContract, saveAndCloseContract,
