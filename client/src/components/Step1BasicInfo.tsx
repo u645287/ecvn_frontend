@@ -10,7 +10,7 @@ export default function Step1BasicInfo() {
       <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 border-t-4 border-t-blue-600">
         <h3 className="text-xl font-bold text-slate-800 mb-6 border-b pb-4">
           <i className="fas fa-file-signature mr-2 text-blue-500" />
-          代理人申請單作業
+          1.1 註冊申請
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">

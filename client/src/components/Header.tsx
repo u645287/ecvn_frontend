@@ -1,7 +1,7 @@
 import { useRegistration } from '@/contexts/RegistrationContext';
 
 function getStepTitle(step: number): string {
-  if (step === 1) return '第一步：代理人基本資料申請';
+  if (step === 1) return '1.1 註冊申請';
   if (step === 2) return '第二步：轉直供契約驗證與綁定 (發電/用電配對)';
   if (step === 3) return '第三步：儲能設施綁定 (選填)';
   return '';
