@@ -76,7 +76,7 @@
 
 /// <reference types="@types/google.maps" />
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePersistFn } from "@/hooks/usePersistFn";
 import { cn } from "@/lib/utils";
 
@@ -93,19 +93,43 @@ const FORGE_BASE_URL =
 const MAPS_PROXY_URL = `${FORGE_BASE_URL}/v1/maps/proxy`;
 
 function loadMapScript() {
-  return new Promise(resolve => {
-    const script = document.createElement("script");
-    script.src = `${MAPS_PROXY_URL}/maps/api/js?key=${API_KEY}&v=weekly&libraries=marker,places,geocoding,geometry`;
-    script.async = true;
-    script.crossOrigin = "anonymous";
-    script.onload = () => {
-      resolve(null);
-      script.remove(); // Clean up immediately
-    };
-    script.onerror = () => {
-      console.error("Failed to load Google Maps script");
-    };
-    document.head.appendChild(script);
+  if (window.google?.maps) return Promise.resolve();
+
+  if (!API_KEY) {
+    return Promise.reject(
+      new Error("Missing VITE_FRONTEND_FORGE_API_KEY. Please set this env var before loading map.")
+    );
+  }
+
+  const urls = [
+    `${MAPS_PROXY_URL}/maps/api/js?key=${API_KEY}&v=weekly&libraries=marker,places,geocoding,geometry`,
+    `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&v=weekly&libraries=marker,places,geocoding,geometry`,
+  ];
+
+  return urls.reduce<Promise<void>>(
+    (prev, src) =>
+      prev.catch(
+        () =>
+          new Promise<void>((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = src;
+            script.async = true;
+            script.crossOrigin = "anonymous";
+            script.onload = () => {
+              script.remove();
+              resolve();
+            };
+            script.onerror = () => {
+              script.remove();
+              reject(new Error(`Failed to load Google Maps script from ${src}`));
+            };
+            document.head.appendChild(script);
+          })
+      ),
+    Promise.reject(new Error("Init loading"))
+  ).catch((error) => {
+    console.error(error);
+    throw new Error("Unable to load Google Maps script from both proxy and direct endpoints.");
   });
 }
 
@@ -124,24 +148,38 @@ export function MapView({
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
 
   const init = usePersistFn(async () => {
-    await loadMapScript();
-    if (!mapContainer.current) {
-      console.error("Map container not found");
-      return;
-    }
-    map.current = new window.google.maps.Map(mapContainer.current, {
-      zoom: initialZoom,
-      center: initialCenter,
-      mapTypeControl: true,
-      fullscreenControl: true,
-      zoomControl: true,
-      streetViewControl: true,
-      mapId: "DEMO_MAP_ID",
-    });
-    if (onMapReady) {
-      onMapReady(map.current);
+    try {
+      await loadMapScript();
+      if (!mapContainer.current) {
+        console.error("Map container not found");
+        return;
+      }
+      if (!window.google?.maps) {
+        setMapError("Google Maps SDK 載入失敗，請檢查 API Key 與網路。");
+        return;
+      }
+
+      map.current = new window.google.maps.Map(mapContainer.current, {
+        zoom: initialZoom,
+        center: initialCenter,
+        mapTypeControl: true,
+        fullscreenControl: true,
+        zoomControl: true,
+        streetViewControl: true,
+      });
+      setMapError(null);
+      if (onMapReady) {
+        onMapReady(map.current);
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Google Maps 初始化失敗，請確認地圖 API 設定。";
+      setMapError(message);
     }
   });
 
@@ -150,6 +188,17 @@ export function MapView({
   }, [init]);
 
   return (
-    <div ref={mapContainer} className={cn("w-full h-[500px]", className)} />
+    <div className={cn("relative w-full h-[500px]", className)}>
+      <div ref={mapContainer} className="w-full h-full" />
+      {mapError && (
+        <div className="absolute inset-0 bg-slate-950/80 text-slate-100 flex flex-col items-center justify-center p-6 text-center">
+          <p className="text-lg font-bold mb-2">地圖載入失敗</p>
+          <p className="text-sm leading-relaxed max-w-2xl">{mapError}</p>
+          <p className="text-xs text-slate-300 mt-3">
+            請設定 `VITE_FRONTEND_FORGE_API_KEY`，或檢查是否可連線至 Google Maps。
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
