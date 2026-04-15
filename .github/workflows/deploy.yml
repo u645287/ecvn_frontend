@@ -30,6 +30,9 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        with:
+          # 與 package.json 的 packageManager 對齊，避免額外解析版本
+          version: 10.4.1
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

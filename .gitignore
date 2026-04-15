@@ -2,6 +2,9 @@
 **/node_modules
 .pnpm-store/
 
+# 本機 npm/pnpm proxy（公司內網）；請複製 .npmrc.example → .npmrc，勿 commit
+.npmrc
+
 # Build outputs
 dist/
 build/

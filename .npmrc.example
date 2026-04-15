@@ -1,0 +1,5 @@
+# 僅在公司內網開發時使用：複製此檔為 `.npmrc`（勿將含 proxy 的 .npmrc 提交至 Git）
+# GitHub Actions 在公網無法連線 proxy-n1.taipower.com.tw，會導致 CI 失敗。
+
+proxy=http://proxy-n1.taipower.com.tw:3128
+https-proxy=http://proxy-n1.taipower.com.tw:3128
