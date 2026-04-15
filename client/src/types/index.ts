@@ -31,6 +31,8 @@ export interface Contract {
   serviceId: string;
   verified: boolean;
   dbData: ContractDbData | null;
+  /** true：以業務處(CIS)資料為準；false：允許保留/編修自建資料 */
+  syncBusinessData: boolean;
 }
 
 // === 儲能設施 (Step 3) ===

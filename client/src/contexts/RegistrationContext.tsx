@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { AGENTS as INITIAL_AGENTS, type Agent as AggregationAgent } from '@/data/agentAggregation';
 import type { AppInfo, Contract, StorageDevice } from '@/types';
 
 interface RegistrationState {
@@ -24,6 +25,9 @@ interface RegistrationState {
   isStorageModalOpen: boolean;
   editStorageIndex: number | null;
   tempStorage: StorageDevice;
+
+  // Dashboard 2.1 / Overview 1.1 共用代理人資料
+  agents: AggregationAgent[];
 }
 
 interface RegistrationActions {
@@ -34,6 +38,8 @@ interface RegistrationActions {
   startNewRegistration: () => void;
   goToRegistrationOverview: () => void;
   setSyncBusinessData: (sync: boolean) => void;
+  setContractSyncBusinessData: (index: number, sync: boolean) => void;
+  setAllContractsSyncBusinessData: (sync: boolean) => void;
   setAppInfo: (info: Partial<AppInfo>) => void;
 
   // Contract actions
@@ -54,6 +60,11 @@ interface RegistrationActions {
   closeStorageModal: () => void;
   setTempStorage: (field: string, value: string) => void;
   saveStorage: () => void;
+
+  // Agents actions
+  setAgents: (agents: AggregationAgent[]) => void;
+  updateAgent: (id: number, patch: Partial<AggregationAgent>) => void;
+  deleteAgent: (id: number) => void;
 }
 
 const RegistrationContext = createContext<(RegistrationState & RegistrationActions) | null>(null);
@@ -62,6 +73,7 @@ const createEmptyContract = (): Contract => ({
   serviceId: '',
   verified: false,
   dbData: null,
+  syncBusinessData: true,
 });
 
 const createEmptyStorage = (): StorageDevice => ({
@@ -97,15 +109,49 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
   const [editStorageIndex, setEditStorageIndex] = useState<number | null>(null);
   const [tempStorage, setTempStorageState] = useState<StorageDevice>(createEmptyStorage());
 
+  const [agents, setAgentsState] = useState<AggregationAgent[]>(() => JSON.parse(JSON.stringify(INITIAL_AGENTS)));
+
   const setAppInfo = useCallback((info: Partial<AppInfo>) => {
     setAppInfoState((prev) => ({ ...prev, ...info }));
   }, []);
 
+  const setAgents = useCallback((nextAgents: AggregationAgent[]) => {
+    setAgentsState(JSON.parse(JSON.stringify(nextAgents)));
+  }, []);
+
+  const updateAgent = useCallback((id: number, patch: Partial<AggregationAgent>) => {
+    setAgentsState((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, ...JSON.parse(JSON.stringify(patch)) } : a))
+    );
+  }, []);
+
+  const deleteAgent = useCallback((id: number) => {
+    // 二次確認
+    if (!window.confirm('是否確認真的要刪除這個代理人？')) return;
+    if (!window.confirm('此操作無法復原，是否仍要刪除？')) return;
+    setAgentsState((prev) => prev.filter((a) => a.id !== id));
+  }, []);
+
+  const setContractSyncBusinessData = useCallback((index: number, sync: boolean) => {
+    setContracts((prev) => {
+      const next = [...prev];
+      const target = next[index];
+      if (!target) return prev;
+      next[index] = { ...target, syncBusinessData: sync };
+      return next;
+    });
+  }, []);
+
+  const setAllContractsSyncBusinessData = useCallback((sync: boolean) => {
+    setSyncBusinessData(sync);
+    setContracts((prev) => prev.map((c) => ({ ...c, syncBusinessData: sync })));
+  }, []);
+
   const openContractModal = useCallback(() => {
     setEditContractIndex(null);
-    setTempContractState(createEmptyContract());
+    setTempContractState({ ...createEmptyContract(), syncBusinessData });
     setIsContractModalOpen(true);
-  }, []);
+  }, [syncBusinessData]);
 
   const editContract = useCallback((index: number) => {
     setEditContractIndex(index);
@@ -222,12 +268,14 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
     isSidebarOpen, step, currentView, registrationScreen, syncBusinessData,
     appInfo, contracts, isContractModalOpen, isVerifying, editContractIndex, tempContract,
     storages, isStorageModalOpen, editStorageIndex, tempStorage,
-    setIsSidebarOpen, setStep, setCurrentView, setRegistrationScreen, startNewRegistration, goToRegistrationOverview, setSyncBusinessData, setAppInfo,
+    agents,
+    setIsSidebarOpen, setStep, setCurrentView, setRegistrationScreen, startNewRegistration, goToRegistrationOverview, setSyncBusinessData, setContractSyncBusinessData, setAllContractsSyncBusinessData, setAppInfo,
     openContractModal, editContract, deleteContract, closeContractModal,
     setTempContract, setTempContractDbData, setIsVerifying,
     saveAndNextContract, saveAndCloseContract,
     openStorageModal, editStorage, deleteStorage, closeStorageModal,
     setTempStorage: setTempStorageField, saveStorage,
+    setAgents, updateAgent, deleteAgent,
   };
 
   return (

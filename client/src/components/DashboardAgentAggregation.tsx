@@ -7,7 +7,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { AGENTS, type Agent, type AssetItem } from '@/data/agentAggregation';
+import type { Agent, AssetItem } from '@/data/agentAggregation';
+import { useRegistration } from '@/contexts/RegistrationContext';
 import L from 'leaflet';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -140,6 +141,7 @@ function AssetCard({
 }
 
 export default function DashboardAgentAggregation() {
+  const { agents: AGENTS } = useRegistration();
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [hoveredAssetId, setHoveredAssetId] = useState<string | null>(null);
   const [focusedAssetId, setFocusedAssetId] = useState<string | null>(null);
