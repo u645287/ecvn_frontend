@@ -207,6 +207,12 @@
   }
 }
 
+/* Leaflet divIcon：避免預設白底／邊框蓋住自訂標記內容 */
+.leaflet-div-icon.resource-marker-divicon {
+  background: transparent !important;
+  border: none !important;
+}
+
 .resource-marker {
   position: relative;
   width: 34px;

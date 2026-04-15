@@ -1,5 +1,5 @@
 import { MapView, type LatLngLiteral, type LeafletMapLike } from '@/components/Map';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 declare global {
   interface Window {
@@ -212,8 +212,8 @@ export default function DashboardAgentAggregation() {
   const [focusedAssetId, setFocusedAssetId] = useState<string | null>(null);
   const [resolvedPositions, setResolvedPositions] = useState<Record<string, LatLngLiteral>>({});
   const mapRef = useRef<LeafletMapLike | null>(null);
-  /** 地圖 onMapReady 為非同步；僅寫入 ref 不會觸發重繪，需配合此 tick 讓標記 effect 重新執行 */
-  const [mapReadyTick, setMapReadyTick] = useState(0);
+  /** 以 state 保存地圖實例，標記 effect 才能在地圖就緒後可靠重跑（僅 ref 不會觸發 render） */
+  const [leafletMap, setLeafletMap] = useState<LeafletMapLike | null>(null);
   const markersRef = useRef<Map<string, MarkerRecord>>(new Map());
   const geocodeCacheRef = useRef<Record<string, LatLngLiteral>>({});
   const maxTotal = useMemo(
@@ -236,9 +236,20 @@ export default function DashboardAgentAggregation() {
       });
       markersRef.current.clear();
       mapRef.current = null;
-      setMapReadyTick(0);
+      setLeafletMap(null);
     }
   }, [selectedAgent]);
+
+  /** 切換代理人時 Map 會因 key 重建；先清掉舊 map 參考，避免標記加到已銷毀的實例上 */
+  useLayoutEffect(() => {
+    if (!selectedAgent) return;
+    markersRef.current.forEach(({ marker }) => {
+      marker.remove();
+    });
+    markersRef.current.clear();
+    mapRef.current = null;
+    setLeafletMap(null);
+  }, [selectedAgent?.id]);
 
   useEffect(() => {
     if (!selectedAgent) return;
@@ -271,15 +282,9 @@ export default function DashboardAgentAggregation() {
   }, [selectedAgent, selectedAgentAssets]);
 
   useEffect(() => {
-    const map = mapRef.current;
+    const map = leafletMap;
     const L = window.L;
     if (!map || !selectedAgent || !L) return;
-    const mapAny = map as any;
-    if (!mapAny._container || !mapAny._panes) return;
-    if (!mapAny.getPane('markerPane') && typeof mapAny.createPane === 'function') {
-      mapAny.createPane('markerPane');
-    }
-    if (!mapAny.getPane('markerPane')) return;
 
     markersRef.current.forEach(({ marker }) => {
       marker.remove();
@@ -289,24 +294,18 @@ export default function DashboardAgentAggregation() {
     const bounds = L.latLngBounds([]);
 
     selectedAgentAssets.forEach((asset) => {
-      if (!mapAny._container || !mapAny._panes?.markerPane) return;
       const position = resolvedPositions[asset.id] ?? asset.fallbackPosition;
       const markerContent = createMarkerContent(asset);
       const icon = L.divIcon({
         html: markerContent.outerHTML,
-        className: '',
+        className: 'leaflet-div-icon resource-marker-divicon',
         iconSize: [52, 52],
         iconAnchor: [26, 26],
       });
-      let marker: any;
-      try {
-        marker = L.marker([position.lat, position.lng], {
-          icon,
-          title: asset.name,
-        }).addTo(map);
-      } catch {
-        return;
-      }
+      const marker = L.marker([position.lat, position.lng], {
+        icon,
+        title: asset.name,
+      }).addTo(map);
 
       marker.on('mouseover', () => setHoveredAssetId(asset.id));
       marker.on('mouseout', () => setHoveredAssetId((prev) => (prev === asset.id ? null : prev)));
@@ -319,7 +318,7 @@ export default function DashboardAgentAggregation() {
     if (selectedAgentAssets.length > 0 && bounds.isValid()) {
       map.fitBounds(bounds, { padding: [80, 80] });
     }
-  }, [selectedAgent, selectedAgentAssets, resolvedPositions, mapReadyTick]);
+  }, [selectedAgent, selectedAgentAssets, resolvedPositions, leafletMap]);
 
   useEffect(() => {
     markersRef.current.forEach(({ asset, marker, icon }) => {
@@ -436,12 +435,13 @@ export default function DashboardAgentAggregation() {
           </div>
           <div className="rounded-3xl overflow-hidden border border-slate-200 shadow-sm">
             <MapView
+              key={selectedAgent.id}
               className="h-[520px]"
               initialCenter={selectedAgentAssets[0]?.fallbackPosition ?? { lat: 23.7, lng: 120.9 }}
               initialZoom={8}
               onMapReady={(map) => {
                 mapRef.current = map;
-                setMapReadyTick((t) => t + 1);
+                setLeafletMap(map);
               }}
             />
           </div>
