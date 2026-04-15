@@ -582,7 +582,7 @@ export default function DashboardAgentAggregation() {
                 <i className="fas fa-chevron-right" />
               </div>
             </button>
-            )))
+            ))
           )}
         </div>
 

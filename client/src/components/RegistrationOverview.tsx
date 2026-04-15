@@ -131,7 +131,7 @@ export default function RegistrationOverview() {
                 <div className="lg:col-span-2"><span className="text-slate-500">更新日期：</span><span className="font-bold text-slate-700">{row.updatedAt}</span></div>
               </div>
             </div>
-            )))
+            ))
           )}
         </div>
       </div>
