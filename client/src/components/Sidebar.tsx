@@ -103,7 +103,7 @@ export default function Sidebar() {
             isSidebarOpen ? 'text-xl opacity-100' : 'text-xs opacity-0 w-0'
           }`}
         >
-          ECVN大平台
+          ECVN小平台
         </h1>
         {!isSidebarOpen && (
           <i className="fas fa-bolt text-blue-400 text-2xl absolute" />
