@@ -1,11 +1,6 @@
 import { MapView, type LatLngLiteral, type LeafletMapLike } from '@/components/Map';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-
-declare global {
-  interface Window {
-    L?: any;
-  }
-}
+import L from 'leaflet';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface AssetItem {
   id: string;
@@ -99,8 +94,16 @@ const agents: Agent[] = [
 
 type MarkerRecord = {
   marker: any;
-  icon: any;
   asset: AssetItem;
+};
+
+const CATEGORY_MARKER_STYLE: Record<
+  AssetItem['category'],
+  { fill: string; stroke: string }
+> = {
+  generation: { fill: '#facc15', stroke: '#ca8a04' },
+  load: { fill: '#fb7185', stroke: '#dc2626' },
+  storage: { fill: '#60a5fa', stroke: '#2563eb' },
 };
 
 type GeocodeResult = {
@@ -240,17 +243,6 @@ export default function DashboardAgentAggregation() {
     }
   }, [selectedAgent]);
 
-  /** 切換代理人時 Map 會因 key 重建；先清掉舊 map 參考，避免標記加到已銷毀的實例上 */
-  useLayoutEffect(() => {
-    if (!selectedAgent) return;
-    markersRef.current.forEach(({ marker }) => {
-      marker.remove();
-    });
-    markersRef.current.clear();
-    mapRef.current = null;
-    setLeafletMap(null);
-  }, [selectedAgent?.id]);
-
   useEffect(() => {
     if (!selectedAgent) return;
 
@@ -283,35 +275,38 @@ export default function DashboardAgentAggregation() {
 
   useEffect(() => {
     const map = leafletMap;
-    const L = window.L;
-    if (!map || !selectedAgent || !L) return;
+    if (!map || !selectedAgent) return;
 
     markersRef.current.forEach(({ marker }) => {
       marker.remove();
     });
     markersRef.current.clear();
 
+    const mapAny = map as any;
+    mapAny.invalidateSize?.();
+
     const bounds = L.latLngBounds([]);
 
     selectedAgentAssets.forEach((asset) => {
       const position = resolvedPositions[asset.id] ?? asset.fallbackPosition;
-      const markerContent = createMarkerContent(asset);
-      const icon = L.divIcon({
-        html: markerContent.outerHTML,
-        className: 'leaflet-div-icon resource-marker-divicon',
-        iconSize: [52, 52],
-        iconAnchor: [26, 26],
-      });
-      const marker = L.marker([position.lat, position.lng], {
-        icon,
-        title: asset.name,
+      const style = CATEGORY_MARKER_STYLE[asset.category];
+      const marker = L.circleMarker([position.lat, position.lng], {
+        radius: 10,
+        color: style.stroke,
+        weight: 2,
+        fillColor: style.fill,
+        fillOpacity: 0.92,
       }).addTo(map);
+
+      marker.bindPopup(
+        `<div class="text-sm"><strong>${asset.name}</strong><br/>${asset.capacityKw} kW · ${getAssetMeta(asset.category).shortLabel}</div>`
+      );
 
       marker.on('mouseover', () => setHoveredAssetId(asset.id));
       marker.on('mouseout', () => setHoveredAssetId((prev) => (prev === asset.id ? null : prev)));
       marker.on('click', () => setFocusedAssetId(asset.id));
 
-      markersRef.current.set(asset.id, { marker, icon, asset });
+      markersRef.current.set(asset.id, { marker, asset });
       bounds.extend([position.lat, position.lng]);
     });
 
@@ -321,15 +316,18 @@ export default function DashboardAgentAggregation() {
   }, [selectedAgent, selectedAgentAssets, resolvedPositions, leafletMap]);
 
   useEffect(() => {
-    markersRef.current.forEach(({ asset, marker, icon }) => {
+    markersRef.current.forEach(({ asset, marker }) => {
       const isActive = highlightedAssetId === asset.id;
       const isFocused = focusedAssetId === asset.id;
-
-      const markerHtml = createMarkerContent(asset);
-      if (isActive) markerHtml.classList.add('is-active');
-      if (isFocused) markerHtml.classList.add('is-focused');
-      icon.options.html = markerHtml.outerHTML;
-      marker.setIcon(icon);
+      const style = CATEGORY_MARKER_STYLE[asset.category];
+      const emphasis = isActive || isFocused;
+      marker.setStyle({
+        radius: emphasis ? 14 : 10,
+        weight: emphasis ? 4 : 2,
+        color: style.stroke,
+        fillColor: style.fill,
+        fillOpacity: 0.95,
+      });
 
       if (isActive && mapRef.current) {
         mapRef.current.panTo(marker.getLatLng());
@@ -442,6 +440,12 @@ export default function DashboardAgentAggregation() {
               onMapReady={(map) => {
                 mapRef.current = map;
                 setLeafletMap(map);
+              }}
+              onMapUnmount={() => {
+                mapRef.current = null;
+                setLeafletMap(null);
+                markersRef.current.forEach(({ marker }) => marker.remove());
+                markersRef.current.clear();
               }}
             />
           </div>

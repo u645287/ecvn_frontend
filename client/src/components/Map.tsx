@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import L, { type Map as LeafletMap } from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { usePersistFn } from "@/hooks/usePersistFn";
 import { cn } from "@/lib/utils";
 
@@ -7,54 +9,15 @@ export interface LatLngLiteral {
   lng: number;
 }
 
-export type LeafletMapLike = {
-  remove: () => void;
-  panTo: (latlng: unknown) => void;
-  fitBounds: (bounds: unknown, options?: unknown) => void;
-  whenReady?: (fn: () => void) => void;
-};
-
-declare global {
-  interface Window {
-    L?: any;
-  }
-}
-
-function loadLeafletAssets() {
-  if (window.L) return Promise.resolve(window.L);
-
-  const cssId = "leaflet-cdn-css";
-  if (!document.getElementById(cssId)) {
-    const link = document.createElement("link");
-    link.id = cssId;
-    link.rel = "stylesheet";
-    link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-    document.head.appendChild(link);
-  }
-
-  return new Promise<any>((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>('script[data-leaflet-cdn="true"]');
-    if (existing) {
-      existing.addEventListener("load", () => resolve(window.L));
-      existing.addEventListener("error", () => reject(new Error("Leaflet CDN 載入失敗")));
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-    script.async = true;
-    script.dataset.leafletCdn = "true";
-    script.onload = () => resolve(window.L);
-    script.onerror = () => reject(new Error("Leaflet CDN 載入失敗"));
-    document.head.appendChild(script);
-  });
-}
+export type LeafletMapLike = LeafletMap;
 
 interface MapViewProps {
   className?: string;
   initialCenter?: LatLngLiteral;
   initialZoom?: number;
   onMapReady?: (map: LeafletMapLike) => void;
+  /** 地圖實例卸載時呼叫（例如切換路由、key 變更），讓父層清掉 leafletMap state */
+  onMapUnmount?: () => void;
 }
 
 export function MapView({
@@ -62,12 +25,15 @@ export function MapView({
   initialCenter = { lat: 37.7749, lng: -122.4194 },
   initialZoom = 12,
   onMapReady,
+  onMapUnmount,
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<LeafletMapLike | null>(null);
+  const onMapUnmountRef = useRef(onMapUnmount);
+  onMapUnmountRef.current = onMapUnmount;
   const [mapError, setMapError] = useState<string | null>(null);
 
-  const init = usePersistFn(async () => {
+  const init = usePersistFn(() => {
     try {
       if (!mapContainer.current) {
         console.error("Map container not found");
@@ -77,11 +43,6 @@ export function MapView({
       if (map.current) {
         map.current.remove();
         map.current = null;
-      }
-
-      const L = await loadLeafletAssets();
-      if (!L) {
-        throw new Error("Leaflet 物件初始化失敗");
       }
 
       const createdMap = L.map(mapContainer.current, {
@@ -110,12 +71,13 @@ export function MapView({
 
   useEffect(() => {
     init();
-  }, [init]);
+  }, [init, initialCenter.lat, initialCenter.lng, initialZoom]);
 
   useEffect(() => {
     return () => {
       map.current?.remove();
       map.current = null;
+      onMapUnmountRef.current?.();
     };
   }, []);
 
