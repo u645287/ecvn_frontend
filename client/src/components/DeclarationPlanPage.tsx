@@ -1,4 +1,4 @@
-import { useRegistration, type PlanSection } from '@/contexts/RegistrationContext';
+import { useRegistration } from '@/contexts/RegistrationContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -35,6 +35,15 @@ const LOAD_MAX_KW = 50;
 const BESS_MIN_KW = -50;
 const BESS_MAX_KW = 50;
 
+type ResourceCategory = 'gen' | 'load' | 'bess';
+type ResourceSeries = { id: string; data: number[] };
+type AgentProfile = {
+  id: string;
+  name: string;
+  taxId: string;
+  contractCodes: string[];
+};
+
 function buildIntervalLabels(): string[] {
   return Array.from({ length: INTERVAL_COUNT }, (_, i) => {
     const h = Math.floor(i / 4)
@@ -47,33 +56,8 @@ function buildIntervalLabels(): string[] {
 
 const INTERVAL_LABELS = buildIntervalLabels();
 
-type ResourceCategory = 'gen' | 'load' | 'bess';
-type ResourceSeries = { id: string; data: number[] };
-type AgentResourceOption = { id: string; label: string };
-type AgentProfile = {
-  id: string;
-  name: string;
-  taxId: string;
-  contractCode: string;
-  contractCount: number;
-  resources: AgentResourceOption[];
-};
-
-function clampToKwRange(v: number): number {
-  if (!Number.isFinite(v)) return GENERATION_MIN_KW;
-  if (v < GENERATION_MIN_KW) return GENERATION_MIN_KW;
-  if (v > GENERATION_MAX_KW) return GENERATION_MAX_KW;
-  return v;
-}
-
-function getRangeByCategory(category: ResourceCategory): { min: number; max: number } {
-  if (category === 'bess') {
-    return { min: BESS_MIN_KW, max: BESS_MAX_KW };
-  }
-  if (category === 'load') {
-    return { min: LOAD_MIN_KW, max: LOAD_MAX_KW };
-  }
-  return { min: GENERATION_MIN_KW, max: GENERATION_MAX_KW };
+function getHourByIndex(index: number): number {
+  return index / 4;
 }
 
 function clampByRange(value: number, min: number, max: number): number {
@@ -83,19 +67,75 @@ function clampByRange(value: number, min: number, max: number): number {
   return value;
 }
 
+function getRangeByCategory(category: ResourceCategory): { min: number; max: number } {
+  if (category === 'bess') return { min: BESS_MIN_KW, max: BESS_MAX_KW };
+  if (category === 'load') return { min: LOAD_MIN_KW, max: LOAD_MAX_KW };
+  return { min: GENERATION_MIN_KW, max: GENERATION_MAX_KW };
+}
+
+function isChargeWindow(index: number): boolean {
+  const h = getHourByIndex(index);
+  return h >= 10 && h < 14;
+}
+
+function isDischargeWindow(index: number): boolean {
+  const h = getHourByIndex(index);
+  return h >= 16 && h < 20;
+}
+
+function pvCurve(hour: number): number {
+  if (hour < 6 || hour > 18) return 0;
+  const x = (hour - 12) / 6;
+  return Math.max(0, Math.exp(-x * x * 2.2));
+}
+
+function loadCurve(hour: number): number {
+  const morning = Math.exp(-((hour - 9) / 2.2) ** 2);
+  const evening = Math.exp(-((hour - 19) / 2.8) ** 2);
+  const base = 0.45 + 0.35 * morning + 0.65 * evening;
+  return Math.min(1.2, base);
+}
+
 function createInitialStore(): Record<ResourceCategory, ResourceSeries[]> {
+  const genCaps = [8, 9, 10, 11, 12];
+  const loadCaps = [8, 9, 10, 11, 12];
+  const chargeCaps = [9, 7, 6];
+  const dischargeCaps = [10, 8, 7];
+
   return {
-    gen: [1, 2, 3, 4, 5].map((i) => ({
-      id: `G${i}`,
-      data: INTERVAL_LABELS.map(() => clampToKwRange(12 + i * 5 + Math.random() * 3)),
+    gen: genCaps.map((cap, i) => ({
+      id: `G${i + 1}`,
+      data: INTERVAL_LABELS.map((_, idx) => {
+        const hour = getHourByIndex(idx);
+        const pv = pvCurve(hour);
+        const withNoise = cap * pv + (i + 1) * 0.15;
+        return clampByRange(withNoise, GENERATION_MIN_KW, GENERATION_MAX_KW);
+      }),
     })),
-    load: [1, 2, 3, 4, 5].map((i) => ({
-      id: `L${i}`,
-      data: INTERVAL_LABELS.map(() => clampToKwRange(10 + i * 4 + Math.random() * 4)),
+    load: loadCaps.map((cap, i) => ({
+      id: `L${i + 1}`,
+      data: INTERVAL_LABELS.map((_, idx) => {
+        const hour = getHourByIndex(idx);
+        const curve = loadCurve(hour);
+        const withNoise = cap * curve + i * 0.2;
+        return clampByRange(withNoise, LOAD_MIN_KW, LOAD_MAX_KW);
+      }),
     })),
     bess: [1, 2, 3].map((i) => ({
       id: `B${i}`,
-      data: INTERVAL_LABELS.map(() => clampToKwRange(8 + i * 4 + Math.random() * 3)),
+      data: INTERVAL_LABELS.map((_, idx) => {
+        if (isChargeWindow(idx)) {
+          const phase = (idx % 16) / 15;
+          const val = chargeCaps[i - 1] * (0.75 + 0.25 * phase);
+          return clampByRange(val, BESS_MIN_KW, BESS_MAX_KW);
+        }
+        if (isDischargeWindow(idx)) {
+          const phase = (idx % 16) / 15;
+          const val = -dischargeCaps[i - 1] * (0.8 + 0.2 * (1 - phase));
+          return clampByRange(val, BESS_MIN_KW, BESS_MAX_KW);
+        }
+        return 0;
+      }),
     })),
   };
 }
@@ -144,34 +184,19 @@ const AGENT_PROFILES: AgentProfile[] = [
     id: 'agent-a',
     name: '台電綠能聚合商',
     taxId: '87654321',
-    contractCode: 'CON-AGT-2026-001',
-    contractCount: 1,
-    resources: [
-      { id: 'resource-a-1', label: '台南光電一號案場' },
-      { id: 'resource-a-2', label: '嘉義風電三號案場' },
-    ],
+    contractCodes: ['CON-AGT-2026-001'],
   },
   {
     id: 'agent-b',
     name: '中區綜合能源代理商',
     taxId: '28469173',
-    contractCode: 'CON-AGT-2026-018',
-    contractCount: 3,
-    resources: [
-      { id: 'resource-b-1', label: '彰化負載聚合群組' },
-      { id: 'resource-b-2', label: '台中儲能聯合站' },
-    ],
+    contractCodes: ['CON-AGT-2026-018', 'CON-AGT-2026-019', 'CON-AGT-2026-021'],
   },
   {
     id: 'agent-c',
     name: '南部智慧電力聚合商',
     taxId: '50931764',
-    contractCode: 'CON-AGT-2026-026',
-    contractCount: 2,
-    resources: [
-      { id: 'resource-c-1', label: '高雄再生能源池' },
-      { id: 'resource-c-2', label: '屏東調度資源群' },
-    ],
+    contractCodes: ['CON-AGT-2026-026', 'CON-AGT-2026-027'],
   },
 ];
 
@@ -199,22 +224,15 @@ export default function DeclarationPlanPage() {
   const [refCode, setRefCode] = useState('REF-EDIT-99');
   const [editBuffer, setEditBuffer] = useState<number[]>([]);
   const [hiddenSeriesKeys, setHiddenSeriesKeys] = useState<Record<string, boolean>>({});
-  const [selectedAgentId, setSelectedAgentId] = useState(AGENT_PROFILES[0].id);
+  const [resourceExpanded, setResourceExpanded] = useState(false);
+  const [selectedAgentId, setSelectedAgentId] = useState('agent-b');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
-  const [selectedResourceId, setSelectedResourceId] = useState(AGENT_PROFILES[0].resources[0]?.id ?? '');
   const csvInputRef = useRef<HTMLInputElement>(null);
 
   const selectedAgent = useMemo(
-    () => AGENT_PROFILES.find((agent) => agent.id === selectedAgentId) ?? AGENT_PROFILES[0],
+    () => AGENT_PROFILES.find((agent) => agent.id === selectedAgentId) ?? AGENT_PROFILES[1],
     [selectedAgentId]
   );
-
-  useEffect(() => {
-    const currentResource = selectedAgent.resources.find((res) => res.id === selectedResourceId);
-    if (!currentResource) {
-      setSelectedResourceId(selectedAgent.resources[0]?.id ?? '');
-    }
-  }, [selectedAgent, selectedResourceId]);
 
   useEffect(() => {
     if (currentView !== 'declaration-plan') return;
@@ -263,6 +281,34 @@ export default function DeclarationPlanPage() {
     });
   }, [store]);
 
+  const genResourceTotals = useMemo(
+    () =>
+      store.gen.map((series) => ({
+        id: series.id,
+        total: series.data.reduce((acc, val) => acc + val, 0) / 4,
+      })),
+    [store.gen]
+  );
+
+  const loadResourceTotals = useMemo(
+    () =>
+      store.load.map((series) => ({
+        id: series.id,
+        total: series.data.reduce((acc, val) => acc + val, 0) / 4,
+      })),
+    [store.load]
+  );
+
+  const bessResourceTotals = useMemo(
+    () =>
+      store.bess.map((series) => {
+        const charge = series.data.reduce((acc, val) => acc + (val > 0 ? val : 0), 0) / 4;
+        const discharge = series.data.reduce((acc, val) => acc + (val < 0 ? Math.abs(val) : 0), 0) / 4;
+        return { id: series.id, charge, discharge };
+      }),
+    [store.bess]
+  );
+
   const openUpload = (title: string) => {
     setUploadTitle(title);
     popup('info', '提示', '請上傳 CSV 檔案');
@@ -283,9 +329,20 @@ export default function DeclarationPlanPage() {
   }, [modifyOpen, modifyCategory, modifyTargetIndex, store]);
 
   const validateAndClampValue = useCallback(
-    (raw: number, interval: string, category: ResourceCategory): number => {
+    (raw: number, interval: string, category: ResourceCategory, index: number): number => {
       const range = getRangeByCategory(category);
-      const clamped = clampByRange(raw, range.min, range.max);
+      let clamped = clampByRange(raw, range.min, range.max);
+
+      if (category === 'bess') {
+        if (clamped > 0 && !isChargeWindow(index)) {
+          popup('warning', '警告', `${interval} 非充電時段，已改為 0.000 kW`);
+          clamped = 0;
+        } else if (clamped < 0 && !isDischargeWindow(index)) {
+          popup('warning', '警告', `${interval} 非放電時段，已改為 0.000 kW`);
+          clamped = 0;
+        }
+      }
+
       if (!Number.isFinite(raw) || raw !== clamped) {
         popup(
           'warning',
@@ -310,7 +367,7 @@ export default function DeclarationPlanPage() {
     (index: number) => {
       setEditBuffer((prev) => {
         const next = [...prev];
-        next[index] = validateAndClampValue(next[index], INTERVAL_LABELS[index], modifyCategory);
+        next[index] = validateAndClampValue(next[index], INTERVAL_LABELS[index], modifyCategory, index);
         return next;
       });
     },
@@ -322,7 +379,9 @@ export default function DeclarationPlanPage() {
       popup('error', '錯誤', '請輸入參考碼後再提交');
       return;
     }
-    const newData = editBuffer.map((v, i) => validateAndClampValue(v, INTERVAL_LABELS[i], modifyCategory));
+    const newData = editBuffer.map((v, i) =>
+      validateAndClampValue(v, INTERVAL_LABELS[i], modifyCategory, i)
+    );
     setStore((prev) => ({
       ...prev,
       [modifyCategory]: prev[modifyCategory].map((s, i) =>
@@ -339,12 +398,15 @@ export default function DeclarationPlanPage() {
   const tooltipFormatter = (value: number) => [`${Number(value).toFixed(3)} kW`, ''];
   const modifyRange = getRangeByCategory(modifyCategory);
   const toggleLegend = (key: string) => {
+    if (!key) return;
     setHiddenSeriesKeys((prev) => ({ ...prev, [key]: !prev[key] }));
   };
   const isSeriesHidden = (key: string) => Boolean(hiddenSeriesKeys[key]);
+
   const firstInterval = summaryRows[0] ?? { gen: 0, load: 0, bess: 0 };
   const surplusKw = Math.max(firstInterval.gen - firstInterval.load, 0);
-  const unstoredSurplusKw = Math.max(surplusKw - firstInterval.bess, 0);
+  const storageChargingKw = Math.max(firstInterval.bess, 0);
+  const unstoredSurplusKw = Math.max(surplusKw - storageChargingKw, 0);
   const lampConfig =
     unstoredSurplusKw > 3
       ? { color: 'bg-red-500', text: 'text-red-700', label: '危險', icon: 'fas fa-triangle-exclamation' }
@@ -358,17 +420,12 @@ export default function DeclarationPlanPage() {
         <div className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm">
           <p className="text-xs font-bold tracking-wide text-slate-600">申報設定</p>
           <h2 className="mt-2 text-3xl font-bold text-slate-900">每日負載預測申報</h2>
-          <p className="mt-2 text-sm text-slate-700">請選擇代理人與日期，依資源別執行 15 分鐘區間申報。</p>
+          <p className="mt-2 text-sm text-slate-700">請選擇代理人與日期，執行 15 分鐘區間申報。</p>
 
-          <div className="mt-6 grid grid-cols-1 gap-3 lg:grid-cols-3">
+          <div className="mt-6 grid grid-cols-1 gap-3 lg:grid-cols-2">
             <div>
               <label className="mb-2 block text-xs font-bold uppercase text-slate-700">代理人名稱</label>
-              <Select
-                value={selectedAgent.id}
-                onValueChange={(value) => {
-                  setSelectedAgentId(value);
-                }}
-              >
+              <Select value={selectedAgent.id} onValueChange={setSelectedAgentId}>
                 <SelectTrigger className="border-slate-400 bg-white text-slate-900">
                   <SelectValue />
                 </SelectTrigger>
@@ -376,22 +433,6 @@ export default function DeclarationPlanPage() {
                   {AGENT_PROFILES.map((agent) => (
                     <SelectItem key={agent.id} value={agent.id}>
                       {agent.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-xs font-bold uppercase text-slate-700">代理人資源</label>
-              <Select value={selectedResourceId} onValueChange={setSelectedResourceId}>
-                <SelectTrigger className="border-slate-400 bg-white text-slate-900">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {selectedAgent.resources.map((resource) => (
-                    <SelectItem key={resource.id} value={resource.id}>
-                      {resource.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -421,25 +462,20 @@ export default function DeclarationPlanPage() {
               <span className="text-slate-600">統編</span>
               <span className="font-semibold">{selectedAgent.taxId}</span>
             </div>
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-start justify-between gap-3">
               <span className="text-slate-600">合約代號</span>
-              <span className="font-semibold">{selectedAgent.contractCode}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-slate-600">目前合約張數</span>
-              <span className="font-semibold">{selectedAgent.contractCount}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-slate-600">目前使用資源</span>
-              <span className="font-semibold text-right">
-                {selectedAgent.resources.find((resource) => resource.id === selectedResourceId)?.label ?? '-'}
-              </span>
+              <div className="text-right">
+                {selectedAgent.contractCodes.map((code) => (
+                  <p key={code} className="font-semibold">
+                    {code}
+                  </p>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 3.1 總量 */}
       <section id="declaration-section-total" className="scroll-mt-28 space-y-6">
         <h2 className={sectionTitleClass}>3.1 總量</h2>
         <div className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
@@ -455,7 +491,10 @@ export default function DeclarationPlanPage() {
               計算：餘電 = max(發電 - 用電, 0)，未儲存餘電 = max(餘電 - 儲能吸收, 0)
             </p>
           </div>
-          {/* 網頁註解：綠色 <= 1kW，橘色 > 1kW，紅色 > 3kW */}
+          <p className="mt-2 text-sm font-bold text-indigo-700">
+            <i className="fas fa-clock mr-2" />
+            儲能只可以在10:00-14:00充電、放電只可以在16:00-20:00之間
+          </p>
           <p className="mt-2 text-xs text-slate-700">
             註解：若未儲存餘電超過 1 kW 顯示橘燈；超過 3 kW 顯示紅燈；其餘顯示綠燈。
           </p>
@@ -477,6 +516,48 @@ export default function DeclarationPlanPage() {
           ))}
         </div>
 
+        <div className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
+          <Button
+            type="button"
+            variant="outline"
+            className="border-slate-400 text-slate-800 hover:bg-slate-100"
+            onClick={() => setResourceExpanded((prev) => !prev)}
+          >
+            <i className={`fas ${resourceExpanded ? 'fa-minus' : 'fa-plus'} mr-2`} />
+            資源
+          </Button>
+
+          {resourceExpanded && (
+            <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="mb-2 text-sm font-bold text-sky-700">發電資源（G）</p>
+                {genResourceTotals.map((item) => (
+                  <p key={item.id} className="text-sm text-slate-800">
+                    {item.id} 合計 {item.total.toFixed(1)} kW
+                  </p>
+                ))}
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="mb-2 text-sm font-bold text-rose-700">用電資源（L）</p>
+                {loadResourceTotals.map((item) => (
+                  <p key={item.id} className="text-sm text-slate-800">
+                    {item.id} 合計 {item.total.toFixed(1)} kW
+                  </p>
+                ))}
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="mb-2 text-sm font-bold text-indigo-700">儲能資源（BESS）</p>
+                {bessResourceTotals.map((item) => (
+                  <div key={item.id} className="text-sm text-slate-800">
+                    <p>充電{item.id} 合計 {item.charge.toFixed(1)} kW</p>
+                    <p>放電{item.id} 合計 {item.discharge.toFixed(1)} kW</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm md:p-8">
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-base font-bold text-slate-900">全資源覆蓋趨勢圖（kW）</h3>
@@ -489,7 +570,11 @@ export default function DeclarationPlanPage() {
               >
                 上傳
               </Button>
-              <Button type="button" className="bg-blue-700 text-white hover:bg-blue-800" onClick={() => openModify('gen')}>
+              <Button
+                type="button"
+                className="bg-blue-700 text-white hover:bg-blue-800"
+                onClick={() => openModify('gen')}
+              >
                 調整
               </Button>
             </div>
@@ -543,12 +628,11 @@ export default function DeclarationPlanPage() {
         </div>
       </section>
 
-      {/* 3.2 再生能源預測 */}
       <section id="declaration-section-renewable" className="scroll-mt-28 space-y-4">
         <h2 className={sectionTitleClass}>3.2 再生能源預測</h2>
         <div className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm md:p-8 border-t-4 border-t-cyan-500">
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <h3 className="text-base font-bold text-slate-900">發電明細：G 系列案場（kW）</h3>
+            <h3 className="text-base font-bold text-slate-900">發電明細：PV 曲線案場（kW）</h3>
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
@@ -558,7 +642,11 @@ export default function DeclarationPlanPage() {
               >
                 上傳
               </Button>
-              <Button type="button" className="bg-cyan-600 text-white hover:bg-cyan-700" onClick={() => openModify('gen')}>
+              <Button
+                type="button"
+                className="bg-cyan-600 text-white hover:bg-cyan-700"
+                onClick={() => openModify('gen')}
+              >
                 修改
               </Button>
             </div>
@@ -597,7 +685,6 @@ export default function DeclarationPlanPage() {
         </div>
       </section>
 
-      {/* 3.3 負載預測 */}
       <section id="declaration-section-load" className="scroll-mt-28 space-y-4">
         <h2 className={sectionTitleClass}>3.3 負載預測</h2>
         <div className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm md:p-8 border-t-4 border-t-rose-500">
@@ -612,7 +699,11 @@ export default function DeclarationPlanPage() {
               >
                 上傳
               </Button>
-              <Button type="button" className="bg-rose-600 text-white hover:bg-rose-700" onClick={() => openModify('load')}>
+              <Button
+                type="button"
+                className="bg-rose-600 text-white hover:bg-rose-700"
+                onClick={() => openModify('load')}
+              >
                 修改
               </Button>
             </div>
@@ -651,14 +742,13 @@ export default function DeclarationPlanPage() {
         </div>
       </section>
 
-      {/* 3.4 儲能計畫 */}
       <section id="declaration-section-storage" className="scroll-mt-28 space-y-4">
         <h2 className={sectionTitleClass}>3.4 儲能計畫</h2>
         <div className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm md:p-8 border-t-4 border-t-indigo-600">
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-base font-bold text-slate-900">儲能明細：BESS 排程（kW）</h3>
-              <p className="mt-1 text-sm font-semibold text-indigo-700">堆疊圖</p>
+              <p className="mt-1 text-sm font-semibold text-indigo-700">堆疊圖（正值充電、負值放電）</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -669,7 +759,11 @@ export default function DeclarationPlanPage() {
               >
                 上傳
               </Button>
-              <Button type="button" className="bg-indigo-600 text-white hover:bg-indigo-700" onClick={() => openModify('bess')}>
+              <Button
+                type="button"
+                className="bg-indigo-600 text-white hover:bg-indigo-700"
+                onClick={() => openModify('bess')}
+              >
                 修改
               </Button>
             </div>
@@ -707,27 +801,6 @@ export default function DeclarationPlanPage() {
         </div>
       </section>
 
-      {/* 3.5 COP */}
-      <section id="declaration-section-cop" className="scroll-mt-28 space-y-4">
-        <h2 className={sectionTitleClass}>3.5 COP 申報與公告</h2>
-        <div className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm md:p-8">
-          <p className="mb-6 text-sm leading-relaxed text-slate-800">
-            此區用於 COP（Capacity Obligation Program）相關申報與市場公告檢視。以下為介面占位，實際送出須對接後端 API。
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <Button type="button" className="bg-slate-900 text-white hover:bg-slate-800">
-              <i className="fas fa-file-signature mr-2" />
-              申報草稿
-            </Button>
-            <Button type="button" variant="outline" className="border-slate-400 text-slate-800 hover:bg-slate-100">
-              <i className="fas fa-bullhorn mr-2" />
-              公告紀錄
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* 上傳 Modal */}
       {uploadOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setUploadOpen(false)} />
@@ -760,7 +833,12 @@ export default function DeclarationPlanPage() {
               </p>
             </div>
             <div className="flex gap-3">
-              <Button type="button" variant="ghost" className="flex-1 text-slate-800 hover:bg-slate-100" onClick={() => setUploadOpen(false)}>
+              <Button
+                type="button"
+                variant="ghost"
+                className="flex-1 text-slate-800 hover:bg-slate-100"
+                onClick={() => setUploadOpen(false)}
+              >
                 取消
               </Button>
               <Button
@@ -778,7 +856,6 @@ export default function DeclarationPlanPage() {
         </div>
       )}
 
-      {/* 修改 Modal */}
       {modifyOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setModifyOpen(false)} />
@@ -817,10 +894,7 @@ export default function DeclarationPlanPage() {
               </div>
               <div>
                 <label className="mb-2 block text-xs font-bold uppercase text-slate-700">具體對象</label>
-                <Select
-                  value={String(modifyTargetIndex)}
-                  onValueChange={(v) => setModifyTargetIndex(Number(v))}
-                >
+                <Select value={String(modifyTargetIndex)} onValueChange={(v) => setModifyTargetIndex(Number(v))}>
                   <SelectTrigger className="border-slate-400 bg-white text-slate-900">
                     <SelectValue />
                   </SelectTrigger>
@@ -886,7 +960,12 @@ export default function DeclarationPlanPage() {
             </ScrollArea>
 
             <div className="flex shrink-0 flex-wrap gap-3 p-6">
-              <Button type="button" variant="ghost" className="text-slate-800 hover:bg-slate-100" onClick={() => setModifyOpen(false)}>
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-slate-800 hover:bg-slate-100"
+                onClick={() => setModifyOpen(false)}
+              >
                 放棄修改
               </Button>
               <Button
