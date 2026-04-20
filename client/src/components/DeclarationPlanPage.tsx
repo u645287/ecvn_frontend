@@ -90,8 +90,8 @@ function pvCurve(hour: number): number {
 }
 
 function loadCurve(hour: number): number {
-  const morning = Math.exp(-((hour - 9) / 2.2) ** 2);
-  const evening = Math.exp(-((hour - 19) / 2.8) ** 2);
+  const morning = Math.exp(-(((hour - 9) / 2.2) ** 2));
+  const evening = Math.exp(-(((hour - 19) / 2.8) ** 2));
   const base = 0.45 + 0.35 * morning + 0.65 * evening;
   return Math.min(1.2, base);
 }
