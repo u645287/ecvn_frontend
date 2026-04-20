@@ -527,6 +527,10 @@ export default function DeclarationPlanPage() {
                 ))}
               </div>
             </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-slate-600">合約數量</span>
+              <span className="font-semibold">{selectedAgent.contractCodes.length}</span>
+            </div>
           </div>
         </div>
       </section>
@@ -578,7 +582,7 @@ export default function DeclarationPlanPage() {
             onClick={() => setResourceExpanded((prev) => !prev)}
           >
             <i className={`fas ${resourceExpanded ? 'fa-minus' : 'fa-plus'} mr-2`} />
-            資源
+            各資源名稱
           </Button>
 
           {resourceExpanded && (
@@ -703,18 +707,10 @@ export default function DeclarationPlanPage() {
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
-                variant="outline"
-                className="border-slate-400 text-slate-800 hover:bg-slate-100"
-                onClick={() => openUpload('發電案場資料上傳')}
-              >
-                上傳
-              </Button>
-              <Button
-                type="button"
                 className="bg-cyan-600 text-white hover:bg-cyan-700"
                 onClick={() => openModify('gen')}
               >
-                修改
+                調整
               </Button>
             </div>
           </div>
@@ -760,18 +756,10 @@ export default function DeclarationPlanPage() {
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
-                variant="outline"
-                className="border-slate-400 text-slate-800 hover:bg-slate-100"
-                onClick={() => openUpload('用電用戶資料上傳')}
-              >
-                上傳
-              </Button>
-              <Button
-                type="button"
                 className="bg-rose-600 text-white hover:bg-rose-700"
                 onClick={() => openModify('load')}
               >
-                修改
+                調整
               </Button>
             </div>
           </div>
@@ -820,18 +808,10 @@ export default function DeclarationPlanPage() {
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
-                variant="outline"
-                className="border-slate-400 text-slate-800 hover:bg-slate-100"
-                onClick={() => openUpload('儲能站點資料上傳')}
-              >
-                上傳
-              </Button>
-              <Button
-                type="button"
                 className="bg-indigo-600 text-white hover:bg-indigo-700"
                 onClick={() => openModify('bess')}
               >
-                修改
+                調整
               </Button>
             </div>
           </div>
@@ -875,18 +855,10 @@ export default function DeclarationPlanPage() {
               <div className="flex gap-2">
                 <Button
                   type="button"
-                  variant="outline"
-                  className="border-slate-400 text-slate-800 hover:bg-slate-100"
-                  onClick={() => openUpload('儲能SOC初始值上傳')}
-                >
-                  上傳
-                </Button>
-                <Button
-                  type="button"
                   className="bg-indigo-600 text-white hover:bg-indigo-700"
                   onClick={openSocModify}
                 >
-                  修改
+                  調整
                 </Button>
               </div>
             </div>
@@ -986,7 +958,7 @@ export default function DeclarationPlanPage() {
           <div className="relative z-10 flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-2xl">
             <div className="flex shrink-0 items-start justify-between border-b border-slate-300 bg-slate-100 px-6 py-4">
               <div>
-                <h3 className="text-lg font-bold text-slate-900">智慧資源修改面板</h3>
+                <h3 className="text-lg font-bold text-slate-900">智慧資源調整面板</h3>
                 <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-700">
                   Interval Adjustment（96 時段，範圍依資源類別自動切換）
                 </p>
@@ -1090,7 +1062,7 @@ export default function DeclarationPlanPage() {
                 className="text-slate-800 hover:bg-slate-100"
                 onClick={() => setModifyOpen(false)}
               >
-                放棄修改
+                放棄調整
               </Button>
               <Button
                 type="button"
