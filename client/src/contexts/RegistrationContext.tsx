@@ -2,13 +2,21 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 import { AGENTS as INITIAL_AGENTS, type Agent as AggregationAgent } from '@/data/agentAggregation';
 import type { AppInfo, Contract, StorageDevice } from '@/types/index';
 
+/** 3. 申報計畫單頁內各錨點區塊 */
+export type PlanSection = 'total' | 'load' | 'renewable' | 'storage' | 'cop';
+
+export type AppMainView = 'registration' | 'dashboard-agent-aggregation' | 'declaration-plan';
+
 interface RegistrationState {
   // UI 狀態
   isSidebarOpen: boolean;
   step: number;
-  currentView: 'registration' | 'dashboard-agent-aggregation';
+  currentView: AppMainView;
   registrationScreen: 'overview' | 'form';
   syncBusinessData: boolean;
+  declarationPlanSection: PlanSection;
+  /** 每次導覽遞增，讓同一小節重複點選也能觸發捲動 */
+  declarationPlanNavSeq: number;
 
   // Step 1
   appInfo: AppInfo;
@@ -34,10 +42,11 @@ interface RegistrationState {
 interface RegistrationActions {
   setIsSidebarOpen: (open: boolean) => void;
   setStep: (step: number) => void;
-  setCurrentView: (view: 'registration' | 'dashboard-agent-aggregation') => void;
+  setCurrentView: (view: AppMainView) => void;
   setRegistrationScreen: (screen: 'overview' | 'form') => void;
   startNewRegistration: () => void;
   goToRegistrationOverview: () => void;
+  goDeclarationPlanSection: (section: PlanSection) => void;
   setSyncBusinessData: (sync: boolean) => void;
   setContractSyncBusinessData: (index: number, sync: boolean) => void;
   setAllContractsSyncBusinessData: (sync: boolean) => void;
@@ -112,9 +121,11 @@ const createInitialApplications = (): AppInfo[] => {
 export function RegistrationProvider({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [step, setStep] = useState(1);
-  const [currentView, setCurrentView] = useState<'registration' | 'dashboard-agent-aggregation'>('registration');
+  const [currentView, setCurrentView] = useState<AppMainView>('registration');
   const [registrationScreen, setRegistrationScreen] = useState<'overview' | 'form'>('overview');
   const [syncBusinessData, setSyncBusinessData] = useState(true);
+  const [declarationPlanSection, setDeclarationPlanSection] = useState<PlanSection>('total');
+  const [declarationPlanNavSeq, setDeclarationPlanNavSeq] = useState(0);
 
   const [appInfo, setAppInfoState] = useState<AppInfo>(createInitialAppInfo());
 
@@ -361,12 +372,19 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
     setRegistrationScreen('overview');
   }, []);
 
+  const goDeclarationPlanSection = useCallback((section: PlanSection) => {
+    setCurrentView('declaration-plan');
+    setDeclarationPlanSection(section);
+    setDeclarationPlanNavSeq((n: number) => n + 1);
+  }, []);
+
   const value: RegistrationState & RegistrationActions = {
     isSidebarOpen, step, currentView, registrationScreen, syncBusinessData,
+    declarationPlanSection, declarationPlanNavSeq,
     appInfo, contracts, isContractModalOpen, isVerifying, editContractIndex, tempContract,
     storages, isStorageModalOpen, editStorageIndex, tempStorage,
     agents, applications,
-    setIsSidebarOpen, setStep, setCurrentView, setRegistrationScreen, startNewRegistration, goToRegistrationOverview, setSyncBusinessData, setContractSyncBusinessData, setAllContractsSyncBusinessData, setAppInfo,
+    setIsSidebarOpen, setStep, setCurrentView, setRegistrationScreen, startNewRegistration, goToRegistrationOverview, goDeclarationPlanSection, setSyncBusinessData, setContractSyncBusinessData, setAllContractsSyncBusinessData, setAppInfo,
     openContractModal, editContract, deleteContract, closeContractModal,
     setTempContract, setTempContractDbData, setIsVerifying,
     saveAndNextContract, saveAndCloseContract,

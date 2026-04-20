@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { useRegistration } from '@/contexts/RegistrationContext';
+import { useRegistration, type PlanSection, type AppMainView } from '@/contexts/RegistrationContext';
 
 // 定義導覽資料結構
 interface SubItem {
   id: string;
   label: string;
-  view?: 'registration' | 'dashboard-agent-aggregation';
+  view?: AppMainView;
+  /** 申報計畫單頁內錨點（僅 view 為 declaration-plan 時使用） */
+  section?: PlanSection;
 }
 
 interface ModuleItem {
@@ -43,9 +45,11 @@ const navModules: ModuleItem[] = [
     icon: 'fas fa-gavel',
     label: '3. 申報計畫',
     subItems: [
-      { id: 'bid-3-1', label: '3.1 負載預測' },
-      { id: 'bid-3-2', label: '3.2 再生能源預測' },
-      { id: 'bid-3-3', label: '3.3 COP 申報與公告' },
+      { id: 'bid-3-1', label: '3.1 總量', view: 'declaration-plan', section: 'total' },
+      { id: 'bid-3-2', label: '3.2 負載預測', view: 'declaration-plan', section: 'load' },
+      { id: 'bid-3-3', label: '3.3 再生能源預測', view: 'declaration-plan', section: 'renewable' },
+      { id: 'bid-3-4', label: '3.4 儲能計畫', view: 'declaration-plan', section: 'storage' },
+      { id: 'bid-3-5', label: '3.5 COP 申報與公告', view: 'declaration-plan', section: 'cop' },
     ],
   },
   {
@@ -79,7 +83,8 @@ const navModules: ModuleItem[] = [
 ];
 
 export default function Sidebar() {
-  const { isSidebarOpen, currentView, setCurrentView, goToRegistrationOverview } = useRegistration();
+  const { isSidebarOpen, currentView, setCurrentView, goToRegistrationOverview, goDeclarationPlanSection, declarationPlanSection } =
+    useRegistration();
   // 控制哪些模組是展開的
   const [openModules, setOpenModules] = useState<string[]>(['registration', 'dashboard']);
 
@@ -157,10 +162,15 @@ export default function Sidebar() {
                           goToRegistrationOverview();
                           return;
                         }
+                        if (sub.view === 'declaration-plan' && sub.section) {
+                          goDeclarationPlanSection(sub.section);
+                          return;
+                        }
                         if (sub.view) setCurrentView(sub.view);
                       }}
                       className={`block px-3 py-2 text-sm rounded-md transition-colors sidebar-subitem ${
-                        sub.view === currentView
+                        sub.view === currentView &&
+                        (sub.view !== 'declaration-plan' || sub.section === declarationPlanSection)
                           ? 'bg-blue-600/20 text-blue-400 font-bold'
                           : 'text-slate-400 hover:text-white hover:bg-slate-800'
                       }`}

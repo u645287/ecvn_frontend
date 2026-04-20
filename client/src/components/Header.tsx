@@ -53,11 +53,14 @@ export default function Header() {
 
   const isRegistrationForm = currentView === 'registration' && registrationScreen === 'form';
 
-  const title = currentView === 'dashboard-agent-aggregation'
-    ? '2.1 代理人資源聚合管理'
-    : registrationScreen === 'overview'
-      ? '1.1 註冊申請總覽'
-    : getStepTitle(step);
+  const title =
+    currentView === 'dashboard-agent-aggregation'
+      ? '2.1 代理人資源聚合管理'
+      : currentView === 'declaration-plan'
+        ? '3. 申報計畫'
+        : registrationScreen === 'overview'
+          ? '1.1 註冊申請總覽'
+          : getStepTitle(step);
 
   return (
     <header
