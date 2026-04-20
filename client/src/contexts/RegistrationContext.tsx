@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import { AGENTS as INITIAL_AGENTS, type Agent as AggregationAgent } from '@/data/agentAggregation';
-import type { AppInfo, Contract, StorageDevice } from '@/types';
+import type { AppInfo, Contract, StorageDevice } from '@/types/index';
 
 interface RegistrationState {
   // UI 狀態
@@ -59,7 +59,7 @@ interface RegistrationActions {
   editStorage: (index: number) => void;
   deleteStorage: (index: number) => void;
   closeStorageModal: () => void;
-  setTempStorage: (field: string, value: string) => void;
+  setTempStorage: (field: string, value: string | boolean) => void;
   saveStorage: () => void;
 
   // Agents actions
@@ -83,7 +83,9 @@ const createEmptyContract = (): Contract => ({
 });
 
 const createEmptyStorage = (): StorageDevice => ({
-  elecNo: '', meterNo: '', power: '', capacity: '', chargeEff: '', dischargeEff: '',
+  qse: '',
+  id: '',
+  verified: false,
 });
 
 const createInitialAppInfo = (): AppInfo => ({
@@ -92,7 +94,7 @@ const createInitialAppInfo = (): AppInfo => ({
   taxId: '',
   agentName: '',
   type: '',
-  status: '審核中',
+  status: '已完成',
 });
 
 const createInitialApplications = (): AppInfo[] => {
@@ -196,7 +198,7 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
   const upsertApplication = useCallback((app: AppInfo) => {
     const normalized: AppInfo = {
       ...app,
-      status: app.status || '審核中',
+      status: app.status || '已完成',
       date: app.date || new Date().toISOString().split('T')[0],
       appId: app.appId || `APP-${Date.now().toString().slice(-8)}`,
     };
@@ -211,7 +213,6 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
   }, [syncAgentsFromApplications]);
 
   const deleteApplication = useCallback((appId: string) => {
-    if (!window.confirm('確定要刪除這筆申請單嗎？')) return;
     setApplications((prev) => {
       const next = prev.filter((a) => a.appId !== appId);
       syncAgentsFromApplications(next);
@@ -327,7 +328,7 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
     setIsStorageModalOpen(false);
   }, []);
 
-  const setTempStorageField = useCallback((field: string, value: string) => {
+  const setTempStorageField = useCallback((field: string, value: string | boolean) => {
     setTempStorageState((prev) => ({ ...prev, [field]: value }));
   }, []);
 

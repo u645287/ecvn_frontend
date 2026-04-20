@@ -43,13 +43,18 @@ export interface StorageFormField {
 }
 
 export interface StorageDevice {
-  elecNo: string;
-  meterNo: string;
-  power: string;
-  capacity: string;
-  chargeEff: string;
-  dischargeEff: string;
-  [key: string]: string;
+  qse: string;
+  id: string;
+  verified: boolean;
+}
+
+export interface VerifyEtpBindingResponse {
+  success: boolean;
+  data: {
+    qse: string;
+    id: string;
+  } | null;
+  message?: string;
 }
 
 // === API 相關型別 ===

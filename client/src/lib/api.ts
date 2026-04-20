@@ -8,12 +8,13 @@
 
 import type {
   VerifyContractResponse,
+  VerifyEtpBindingResponse,
   SaveApplicationRequest,
   SaveApplicationResponse,
   AppInfo,
   Contract,
   StorageDevice,
-} from '@/types';
+} from '@/types/index';
 
 // TODO: 替換為真正的 FastAPI 後端 URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
@@ -58,6 +59,35 @@ export async function verifyContract(serviceId: string): Promise<VerifyContractR
   //   body: JSON.stringify({ service_id: serviceId }),
   // });
   // if (!response.ok) throw new Error('驗證失敗');
+  // return response.json();
+}
+
+/**
+ * API 1-2: 驗證 ETP 儲能綁定資料
+ * POST /api/v1/etp/verify
+ */
+export async function verifyEtpBinding(qse: string, id: string): Promise<VerifyEtpBindingResponse> {
+  // === MOCK 模擬（開發用）===
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({
+        success: true,
+        data: {
+          qse,
+          id,
+        },
+        message: 'ETP 資料連線成功，已取得綁定資訊。',
+      });
+    }, 700);
+  });
+
+  // === 正式呼叫（取消註解後使用）===
+  // const response = await fetch(`${API_BASE_URL}/etp/verify`, {
+  //   method: 'POST',
+  //   headers: { 'Content-Type': 'application/json' },
+  //   body: JSON.stringify({ qse, id }),
+  // });
+  // if (!response.ok) throw new Error('ETP 驗證失敗');
   // return response.json();
 }
 

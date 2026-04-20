@@ -1,5 +1,6 @@
 import { useRegistration } from '@/contexts/RegistrationContext';
 import { toast } from 'sonner';
+import type { StorageDevice } from '@/types/index';
 
 export default function Step3Storages() {
   const {
@@ -25,17 +26,17 @@ export default function Step3Storages() {
           <div>
             <h3 className="text-xl font-bold text-slate-800">
               <i className="fas fa-battery-full mr-2 text-blue-500" />
-              代理儲能設施清單
+              ETP 儲能綁定清單
             </h3>
             <p className="text-sm text-slate-500 mt-1">
-              綁定儲能設備以執行 ECVN 跨時段綠電調節。此步驟為選填。
+              透過 ETP 平台綁定 QSE / ID。綁定流程比照契約匯入，不需手動填入儲能參數。
             </p>
           </div>
           <button
             onClick={openStorageModal}
             className="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-bold shadow hover:bg-blue-700 transition flex items-center"
           >
-            <i className="fas fa-plus mr-2" /> 綁定儲能
+            <i className="fas fa-plus mr-2" /> 綁定 ETP
           </button>
         </div>
 
@@ -44,31 +45,29 @@ export default function Step3Storages() {
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-slate-600">
               <tr>
-                <th className="px-4 py-3 font-bold border-r border-white">電號</th>
-                <th className="px-4 py-3 font-bold border-r border-white">表號</th>
-                <th className="px-4 py-3 font-bold text-right border-r border-white">裝置功率</th>
-                <th className="px-4 py-3 font-bold text-right border-r border-white">裝置電量</th>
-                <th className="px-4 py-3 font-bold text-right border-r border-white">充電效率</th>
-                <th className="px-4 py-3 font-bold text-right border-r border-white">放電效率</th>
+                <th className="px-4 py-3 font-bold border-r border-white">QSE</th>
+                <th className="px-4 py-3 font-bold border-r border-white">ID</th>
+                <th className="px-4 py-3 font-bold border-r border-white">綁定狀態</th>
                 <th className="px-4 py-3 font-bold text-center w-24">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {storages.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400 font-bold">
-                    尚未綁定儲能設備
+                  <td colSpan={4} className="px-4 py-8 text-center text-slate-400 font-bold">
+                    尚未綁定任何 ETP 儲能資料
                   </td>
                 </tr>
               ) : (
-                storages.map((storage, index) => (
+                storages.map((storage: StorageDevice, index: number) => (
                   <tr key={index} className="hover:bg-slate-50 transition">
-                    <td className="px-4 py-4 font-mono font-bold text-blue-700">{storage.elecNo}</td>
-                    <td className="px-4 py-4 font-mono font-bold text-slate-700">{storage.meterNo}</td>
-                    <td className="px-4 py-4 text-right font-black text-slate-700">{storage.power} kW</td>
-                    <td className="px-4 py-4 text-right font-black text-slate-700">{storage.capacity} kWh</td>
-                    <td className="px-4 py-4 text-right font-black text-emerald-600">{storage.chargeEff}%</td>
-                    <td className="px-4 py-4 text-right font-black text-rose-600">{storage.dischargeEff}%</td>
+                    <td className="px-4 py-4 font-mono font-bold text-blue-700">{storage.qse}</td>
+                    <td className="px-4 py-4 font-mono font-bold text-slate-700">{storage.id}</td>
+                    <td className="px-4 py-4">
+                      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                        {storage.verified ? '已綁定' : '未驗證'}
+                      </span>
+                    </td>
                     <td className="px-4 py-4 text-center space-x-2 whitespace-nowrap">
                       <button
                         onClick={() => editStorage(index)}
