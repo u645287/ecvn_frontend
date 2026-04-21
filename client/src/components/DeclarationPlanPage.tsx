@@ -93,10 +93,28 @@ function isDischargeWindow(index: number): boolean {
   return h >= 16 && h < 20;
 }
 
+function smoothstep01(t: number): number {
+  const x = Math.min(1, Math.max(0, t));
+  return x * x * (3 - 2 * x);
+}
+
+/** 日出／日落平滑包絡：夜間為 0，無 6:00、18:00 垂直斷點 */
+function daylightEnvelope(hour: number): number {
+  if (hour <= 5) return 0;
+  if (hour < 7) return smoothstep01((hour - 5) / 2);
+  if (hour <= 17) return 1;
+  if (hour < 19) return smoothstep01((19 - hour) / 2);
+  return 0;
+}
+
+/** 日間鐘形（僅乘上包絡後夜間必為 0） */
+function pvBell(hour: number): number {
+  const x = (hour - 12.25) / 5.8;
+  return Math.exp(-x * x * 2);
+}
+
 function pvCurve(hour: number): number {
-  if (hour < 6 || hour > 18) return 0;
-  const x = (hour - 12) / 6;
-  return Math.max(0, Math.exp(-x * x * 2.2));
+  return daylightEnvelope(hour) * pvBell(hour);
 }
 
 function loadCurve(hour: number): number {
@@ -118,8 +136,10 @@ function createInitialStore(): Record<ResourceCategory, ResourceSeries[]> {
       data: INTERVAL_LABELS.map((_, idx) => {
         const hour = getHourByIndex(idx);
         const pv = pvCurve(hour);
-        const withNoise = cap * pv + (i + 1) * 0.15;
-        return clampByRange(withNoise, GENERATION_MIN_KW, GENERATION_MAX_KW);
+        // 僅乘性微調場際差異；夜間 pv=0 時不會出現固定底噪
+        const diversity = 0.92 + 0.08 * Math.sin((hour * Math.PI) / 13 + i * 0.55);
+        const kw = cap * pv * diversity;
+        return clampByRange(kw, 0, GENERATION_MAX_KW);
       }),
     })),
     load: loadCaps.map((cap, i) => ({
@@ -301,6 +321,21 @@ export default function DeclarationPlanPage() {
         row[`b${j}`] = g.data[i];
       });
       return row;
+    });
+  }, [store]);
+
+  /** 3.4：轉供量跟隨再生能源合計，每 15 分鐘不超過負載合計 */
+  const contractTransferRows = useMemo(() => {
+    return INTERVAL_LABELS.map((time, i) => {
+      const genSum = sumSeriesAt(store, 'gen', i);
+      const loadSum = sumSeriesAt(store, 'load', i);
+      const transfer = Math.min(genSum, loadSum);
+      return {
+        time,
+        transfer: Number(transfer.toFixed(3)),
+        genSum: Number(genSum.toFixed(3)),
+        loadSum: Number(loadSum.toFixed(3)),
+      };
     });
   }, [store]);
 
@@ -850,13 +885,74 @@ export default function DeclarationPlanPage() {
       <section id="declaration-section-contract-transfer" className="scroll-mt-28 space-y-4">
         <h2 className={sectionTitleClass}>3.4 合約轉供量</h2>
         <div className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm md:p-8 border-t-4 border-t-amber-500">
-          <h3 className="text-base font-bold text-slate-900">合約轉供與時段策略</h3>
-          <p className="mt-2 text-sm leading-relaxed text-slate-700">
-            本區說明依合約約定之轉供電量與時段安排。與 3.1 總量圖中的「合約數量」示意線呼應：曲線大致跟隨負載，於中午
-            11:00–13:00 明顯較低，代表將多餘再生能源透過儲能或合約機制保留；於夜間尖峰時段再釋出，以配合電價抵免或市場申報策略。
-          </p>
-          <p className="mt-3 text-sm text-slate-600">
-            實際轉供量請以台電／市場介面或後端 API 為準；此處為前端展示與教育說明用。
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">合約轉供量趨勢（kW）</h3>
+              <p className="mt-1 text-sm leading-relaxed text-slate-700">
+                每 15 分鐘轉供量＝min(再生能源發電合計, 負載合計)，故曲線跟隨 PV／發電形狀且不會高於當下負載。橘線為轉供量；虛線為發電合計與負載合計供對照。
+              </p>
+            </div>
+          </div>
+          <div className={chartWrap}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={contractTransferRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" />
+                <XAxis dataKey="time" tick={axisStyle} interval={7} />
+                <YAxis tick={axisStyle}>
+                  <Label value="kW" angle={-90} position="insideLeft" fill="#0f172a" />
+                </YAxis>
+                <Tooltip
+                  contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', color: '#0f172a' }}
+                  formatter={(value: number, name: string) => {
+                    const label =
+                      name === 'transfer'
+                        ? '合約轉供量'
+                        : name === 'genSum'
+                          ? '再生能源合計'
+                          : name === 'loadSum'
+                            ? '負載合計'
+                            : name;
+                    return [`${Number(value).toFixed(3)} kW`, label];
+                  }}
+                />
+                <Legend
+                  wrapperStyle={{ fontSize: 11, color: '#0f172a', cursor: 'pointer' }}
+                  onClick={(entry) => toggleLegend((entry as { dataKey?: string }).dataKey ?? '')}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="loadSum"
+                  hide={isSeriesHidden('loadSum')}
+                  name="負載合計（上限）"
+                  stroke="#94a3b8"
+                  strokeWidth={1.6}
+                  dot={false}
+                  strokeDasharray="4 4"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="genSum"
+                  hide={isSeriesHidden('genSum')}
+                  name="再生能源合計（參考）"
+                  stroke="#22d3ee"
+                  strokeWidth={1.6}
+                  dot={false}
+                  strokeDasharray="6 3"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="transfer"
+                  hide={isSeriesHidden('transfer')}
+                  name="合約轉供量"
+                  stroke="#d97706"
+                  strokeWidth={2.6}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="mt-4 text-xs text-slate-600">
+            實際轉供請以台電／市場或後端資料為準；圖表依目前 3.2／3.3 示範資料即時計算。
           </p>
         </div>
       </section>
