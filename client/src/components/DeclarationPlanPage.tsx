@@ -374,6 +374,31 @@ export default function DeclarationPlanPage() {
       .reduce((acc, bucket) => acc + bucket.kwh, 0);
   }, [summaryRows, selectedDate]);
 
+  const bessSocRows = useMemo(() => {
+    const bessCount = Math.max(store.bess.length, 1);
+    const seriesSoc = store.bess.map((series, seriesIdx) => {
+      const initialSoc = clampByRange(socInitialValues[seriesIdx] ?? 50, 0, 100);
+      const socData: number[] = [];
+      let soc = initialSoc;
+      series.data.forEach((kw, idx) => {
+        const adjustedKw = kw + getStrategicBessDeltaTotal(idx) / bessCount;
+        // 15 分鐘轉換為 SOC 變化比例（示意邏輯）
+        const delta = (adjustedKw / 12) * 2.2;
+        soc = clampByRange(soc + delta, 0, 100);
+        socData.push(soc);
+      });
+      return { id: series.id, socData };
+    });
+
+    return INTERVAL_LABELS.map((time, i) => {
+      const row: Record<string, string | number> = { time };
+      seriesSoc.forEach((series, idx) => {
+        row[`soc${idx}`] = series.socData[i];
+      });
+      return row;
+    });
+  }, [store.bess, socInitialValues]);
+
   const baseChartOption = useMemo(
     () => ({
       animation: false,
@@ -570,31 +595,6 @@ export default function DeclarationPlanPage() {
       }),
     [store.bess]
   );
-
-  const bessSocRows = useMemo(() => {
-    const bessCount = Math.max(store.bess.length, 1);
-    const seriesSoc = store.bess.map((series, seriesIdx) => {
-      const initialSoc = clampByRange(socInitialValues[seriesIdx] ?? 50, 0, 100);
-      const socData: number[] = [];
-      let soc = initialSoc;
-      series.data.forEach((kw, idx) => {
-        const adjustedKw = kw + getStrategicBessDeltaTotal(idx) / bessCount;
-        // 15 分鐘轉換為 SOC 變化比例（示意邏輯）
-        const delta = (adjustedKw / 12) * 2.2;
-        soc = clampByRange(soc + delta, 0, 100);
-        socData.push(soc);
-      });
-      return { id: series.id, socData };
-    });
-
-    return INTERVAL_LABELS.map((time, i) => {
-      const row: Record<string, string | number> = { time };
-      seriesSoc.forEach((series, idx) => {
-        row[`soc${idx}`] = series.socData[i];
-      });
-      return row;
-    });
-  }, [store.bess, socInitialValues]);
 
   const openUpload = (title: string) => {
     setUploadTitle(title);
