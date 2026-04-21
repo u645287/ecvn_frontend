@@ -14,6 +14,8 @@ interface ModuleItem {
   id: string;
   icon: string;
   label: string;
+  /** 無子選單：整列即導覽（例如僅保留 1.1 總覽） */
+  leaf?: boolean;
   subItems: SubItem[];
 }
 
@@ -22,12 +24,8 @@ const navModules: ModuleItem[] = [
     id: 'registration',
     icon: 'fas fa-user-plus',
     label: '1. 註冊作業',
-    subItems: [
-      { id: 'reg-1-1', label: '1.1 註冊申請', view: 'registration' },
-      { id: 'reg-1-2', label: '1.2 能力測試' },
-      { id: 'reg-1-3', label: '1.3 保證金' },
-      { id: 'reg-1-4', label: '1.4 上線' },
-    ],
+    leaf: true,
+    subItems: [],
   },
   {
     id: 'dashboard',
@@ -86,7 +84,7 @@ export default function Sidebar() {
   const { isSidebarOpen, currentView, setCurrentView, goToRegistrationOverview, goDeclarationPlanSection, declarationPlanSection } =
     useRegistration();
   // 控制哪些模組是展開的
-  const [openModules, setOpenModules] = useState<string[]>(['registration', 'dashboard']);
+  const [openModules, setOpenModules] = useState<string[]>(['dashboard']);
 
   const toggleModule = (id: string) => {
     setOpenModules((prev: string[]) =>
@@ -120,7 +118,38 @@ export default function Sidebar() {
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
         {navModules.map((module, moduleIndex) => {
           const isOpen = openModules.includes(module.id);
-          
+          const isLeaf = Boolean(module.leaf);
+
+          if (isLeaf && module.id === 'registration') {
+            const regActive = currentView === 'registration';
+            return (
+              <div
+                key={module.id}
+                className={`sidebar-module ${isSidebarOpen ? 'is-visible' : ''}`}
+                style={{ animationDelay: `${moduleIndex * 35}ms` }}
+              >
+                <a
+                  href="#"
+                  onClick={(e: { preventDefault: () => void }) => {
+                    e.preventDefault();
+                    goToRegistrationOverview();
+                  }}
+                  className={`flex items-center px-3 py-3 rounded-lg transition-colors sidebar-subitem ${
+                    !isSidebarOpen ? 'justify-center' : ''
+                  } ${
+                    regActive
+                      ? 'bg-blue-600/20 text-blue-400 font-bold'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                  }`}
+                  title={module.label}
+                >
+                  <i className={`${module.icon} text-lg w-8 text-center shrink-0`} />
+                  {isSidebarOpen && <span className="ml-2 font-medium">{module.label}</span>}
+                </a>
+              </div>
+            );
+          }
+
           return (
             <div
               key={module.id}
@@ -129,6 +158,7 @@ export default function Sidebar() {
             >
               {/* 大模組按鈕 */}
               <button
+                type="button"
                 onClick={() => isSidebarOpen && toggleModule(module.id)}
                 className={`w-full flex items-center px-3 py-3 rounded-lg transition-colors hover:bg-slate-800 text-slate-300 ${
                   !isSidebarOpen ? 'justify-center' : 'justify-between'

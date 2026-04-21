@@ -29,11 +29,9 @@ function matchesKeyword(haystack: string | undefined | null, needle: string | un
 }
 
 export default function RegistrationOverview() {
-  const { startNewRegistration, applications, upsertApplication, deleteApplication, loadApplicationToForm } = useRegistration();
+  const { startNewRegistration, applications, deleteApplication, loadApplicationToForm } = useRegistration();
   const [searchField, setSearchField] = useState<RegistrationSearchField>('name');
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [editingAppId, setEditingAppId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<{ agentName: string; taxId: string; type: string; status: string; date: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RegistrationItem | null>(null);
 
   const rows = useMemo<RegistrationItem[]>(() => {
@@ -120,104 +118,40 @@ export default function RegistrationOverview() {
                   <h4 className="text-lg font-bold text-slate-800">{row.name}</h4>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-mono text-slate-500">{row.id}</span>
-                    {editingAppId !== row.id && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingAppId(row.id);
-                            setDraft({
-                              agentName: row.name,
-                              taxId: row.taxId,
-                              type: row.type,
-                              status: row.status,
-                              date: row.updatedAt,
-                            });
-                          }}
-                          className="px-2.5 py-1.5 rounded-lg text-blue-700 hover:bg-blue-50 font-bold text-xs transition"
-                        >
-                          編輯
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTarget(row)}
-                          className="px-2.5 py-1.5 rounded-lg text-red-600 hover:bg-red-50 font-bold text-xs transition"
-                        >
-                          刪除
-                        </button>
-                      </>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => loadApplicationToForm(row.id)}
+                      className="px-2.5 py-1.5 rounded-lg text-blue-700 hover:bg-blue-50 font-bold text-xs transition"
+                    >
+                      編輯
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(row)}
+                      className="px-2.5 py-1.5 rounded-lg text-red-600 hover:bg-red-50 font-bold text-xs transition"
+                    >
+                      刪除
+                    </button>
                   </div>
                 </div>
 
-                {editingAppId === row.id && draft ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-sm mb-4">
-                    <Input value={draft.agentName} onChange={(e: any) => setDraft((p: any) => (p ? { ...p, agentName: e.target.value } : p))} />
-                    <Input value={draft.taxId} onChange={(e: any) => setDraft((p: any) => (p ? { ...p, taxId: e.target.value } : p))} />
-                    <Input value={draft.type} onChange={(e: any) => setDraft((p: any) => (p ? { ...p, type: e.target.value } : p))} />
-                    <select
-                      value={draft.status}
-                      onChange={(e: any) => setDraft((p: any) => (p ? { ...p, status: e.target.value } : p))}
-                      className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-700 font-bold outline-none"
-                    >
-                      <option value="審核中">審核中</option>
-                      <option value="書審通過">書審通過</option>
-                      <option value="已完成">已完成</option>
-                    </select>
-                    <Input type="date" value={draft.date} onChange={(e: any) => setDraft((p: any) => (p ? { ...p, date: e.target.value } : p))} />
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-sm">
+                  <div>
+                    <span className="text-slate-500">統編：</span>
+                    <span className="font-bold text-slate-700">{row.taxId}</span>
                   </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-sm">
-                    <div><span className="text-slate-500">統編：</span><span className="font-bold text-slate-700">{row.taxId}</span></div>
-                    <div><span className="text-slate-500">類型：</span><span className="font-bold text-slate-700">{row.type}</span></div>
-                    <div><span className="text-slate-500">狀態：</span><span className="font-bold text-blue-700">{row.status}</span></div>
-                    <div className="lg:col-span-2"><span className="text-slate-500">更新日期：</span><span className="font-bold text-slate-700">{row.updatedAt}</span></div>
+                  <div>
+                    <span className="text-slate-500">類型：</span>
+                    <span className="font-bold text-slate-700">{row.type}</span>
                   </div>
-                )}
-
-                <div className="mt-4 flex items-center justify-end gap-2">
-                  {editingAppId === row.id && draft ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingAppId(null);
-                          setDraft(null);
-                        }}
-                        className="px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-100 font-bold text-sm transition"
-                      >
-                        取消
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          upsertApplication({
-                            appId: row.id,
-                            agentName: draft.agentName,
-                            taxId: draft.taxId,
-                            type: draft.type,
-                            status: draft.status,
-                            date: draft.date,
-                          });
-                          setEditingAppId(null);
-                          setDraft(null);
-                        }}
-                        className="px-3 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700 font-bold text-sm transition"
-                      >
-                        儲存
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => loadApplicationToForm(row.id)}
-                        className="px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-100 font-bold text-sm transition"
-                      >
-                        進入流程
-                      </button>
-                    </>
-                  )}
+                  <div>
+                    <span className="text-slate-500">狀態：</span>
+                    <span className="font-bold text-blue-700">{row.status}</span>
+                  </div>
+                  <div className="lg:col-span-2">
+                    <span className="text-slate-500">更新日期：</span>
+                    <span className="font-bold text-slate-700">{row.updatedAt}</span>
+                  </div>
                 </div>
               </div>
             ))
