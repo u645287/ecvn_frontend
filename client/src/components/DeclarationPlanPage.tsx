@@ -41,6 +41,8 @@ const LOAD_MAX_KW = 50;
 const BESS_MIN_KW = -50;
 const BESS_MAX_KW = 50;
 const MIDDAY_TRANSFER_REDUCTION_KW = 20;
+const MIDDAY_BESS_EXTRA_CHARGE_KW = 20;
+const EVENING_BESS_EXTRA_DISCHARGE_KW = 20;
 
 type ResourceCategory = 'gen' | 'load' | 'bess';
 type ResourceSeries = { id: string; data: number[] };
@@ -93,6 +95,13 @@ function isMiddayTransferReductionWindow(index: number): boolean {
 function applyContractTransferStrategy(index: number, baseTransferKw: number): number {
   if (!isMiddayTransferReductionWindow(index)) return baseTransferKw;
   return Math.max(baseTransferKw - MIDDAY_TRANSFER_REDUCTION_KW, 0);
+}
+
+function getStrategicBessDeltaTotal(index: number): number {
+  const h = getHourByIndex(index);
+  if (h >= 11 && h < 13) return MIDDAY_BESS_EXTRA_CHARGE_KW;
+  if (h >= 18 && h < 20) return -EVENING_BESS_EXTRA_DISCHARGE_KW;
+  return 0;
 }
 
 function isDischargeWindow(index: number): boolean {
@@ -288,11 +297,12 @@ export default function DeclarationPlanPage() {
       const genVal = sumSeriesAt(store, 'gen', i);
       const loadVal = sumSeriesAt(store, 'load', i);
       const contractQty = applyContractTransferStrategy(i, Math.min(genVal, loadVal));
+      const strategicBess = sumSeriesAt(store, 'bess', i) + getStrategicBessDeltaTotal(i);
       return {
         time,
         gen: genVal,
         load: loadVal,
-        bess: sumSeriesAt(store, 'bess', i),
+        bess: Number(strategicBess.toFixed(3)),
         contractQty: Number(contractQty.toFixed(3)),
       };
     });
@@ -319,10 +329,12 @@ export default function DeclarationPlanPage() {
   }, [store]);
 
   const bessRows = useMemo(() => {
+    const bessCount = Math.max(store.bess.length, 1);
     return INTERVAL_LABELS.map((time, i) => {
       const row: Record<string, string | number> = { time };
+      const deltaPerSeries = getStrategicBessDeltaTotal(i) / bessCount;
       store.bess.forEach((g, j) => {
-        row[`b${j}`] = g.data[i];
+        row[`b${j}`] = Number((g.data[i] + deltaPerSeries).toFixed(3));
       });
       return row;
     });
@@ -364,21 +376,32 @@ export default function DeclarationPlanPage() {
   const bessResourceTotals = useMemo(
     () =>
       store.bess.map((series) => {
-        const charge = series.data.reduce((acc, val) => acc + (val > 0 ? val : 0), 0) / 4;
-        const discharge = series.data.reduce((acc, val) => acc + (val < 0 ? Math.abs(val) : 0), 0) / 4;
+        const bessCount = Math.max(store.bess.length, 1);
+        const charge =
+          series.data.reduce((acc, val, idx) => {
+            const adjusted = val + getStrategicBessDeltaTotal(idx) / bessCount;
+            return acc + (adjusted > 0 ? adjusted : 0);
+          }, 0) / 4;
+        const discharge =
+          series.data.reduce((acc, val, idx) => {
+            const adjusted = val + getStrategicBessDeltaTotal(idx) / bessCount;
+            return acc + (adjusted < 0 ? Math.abs(adjusted) : 0);
+          }, 0) / 4;
         return { id: series.id, charge, discharge };
       }),
     [store.bess]
   );
 
   const bessSocRows = useMemo(() => {
+    const bessCount = Math.max(store.bess.length, 1);
     const seriesSoc = store.bess.map((series, seriesIdx) => {
       const initialSoc = clampByRange(socInitialValues[seriesIdx] ?? 50, 0, 100);
       const socData: number[] = [];
       let soc = initialSoc;
-      series.data.forEach((kw) => {
+      series.data.forEach((kw, idx) => {
+        const adjustedKw = kw + getStrategicBessDeltaTotal(idx) / bessCount;
         // 15 分鐘轉換為 SOC 變化比例（示意邏輯）
-        const delta = (kw / 12) * 2.2;
+        const delta = (adjustedKw / 12) * 2.2;
         soc = clampByRange(soc + delta, 0, 100);
         socData.push(soc);
       });
@@ -634,7 +657,11 @@ export default function DeclarationPlanPage() {
                     </button>
                   </div>
                 </TooltipTrigger>
-                <TooltipContent side="left" sideOffset={8} className="max-w-xs text-balance">
+                <TooltipContent
+                  side="left"
+                  sideOffset={8}
+                  className="max-w-xs border border-slate-300 bg-slate-100 text-slate-900 shadow-xl text-balance"
+                >
                   <p className="font-semibold">
                     餘電燈號：{lampConfig.label}（未儲存餘電 {unstoredSurplusKw.toFixed(3)} kW）
                   </p>
@@ -659,7 +686,11 @@ export default function DeclarationPlanPage() {
                     </button>
                   </div>
                 </TooltipTrigger>
-                <TooltipContent side="left" sideOffset={8} className="max-w-xs text-balance">
+                <TooltipContent
+                  side="left"
+                  sideOffset={8}
+                  className="max-w-xs border border-slate-300 bg-slate-100 text-slate-900 shadow-xl text-balance"
+                >
                   <p className="font-semibold">
                     儲能SOC燈號：{socLampConfig.label}（
                     {socLampConfig.label === '正常' ? '沒有超過安全上下限' : '請檢查SOC區間'}）
@@ -683,7 +714,11 @@ export default function DeclarationPlanPage() {
                     </button>
                   </div>
                 </TooltipTrigger>
-                <TooltipContent side="left" sideOffset={8} className="max-w-xs text-balance">
+                <TooltipContent
+                  side="left"
+                  sideOffset={8}
+                  className="max-w-xs border border-slate-300 bg-slate-100 text-slate-900 shadow-xl text-balance"
+                >
                   <p className="font-semibold">
                     儲能只可以在10:00-14:00充電、放電只可以在16:00-20:00之間
                   </p>
@@ -1035,6 +1070,15 @@ export default function DeclarationPlanPage() {
                   strokeWidth={2.2}
                   dot={false}
                 />
+                <Area
+                  type="monotone"
+                  dataKey="transfer"
+                  hide={isSeriesHidden('transfer')}
+                  fill="#16a34a"
+                  fillOpacity={0.65}
+                  stroke="none"
+                  isAnimationActive={false}
+                />
                 <Line
                   type="monotone"
                   dataKey="transfer"
@@ -1044,15 +1088,6 @@ export default function DeclarationPlanPage() {
                   strokeWidth={2.6}
                   dot={false}
                   strokeDasharray="6 4"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="transfer"
-                  hide={isSeriesHidden('transfer')}
-                  fill="#16a34a"
-                  fillOpacity={0.65}
-                  stroke="none"
-                  isAnimationActive={false}
                 />
               </LineChart>
             </ResponsiveContainer>
