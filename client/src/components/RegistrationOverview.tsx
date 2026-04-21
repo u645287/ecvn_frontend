@@ -9,6 +9,7 @@ import {
 import { useRegistration } from '@/contexts/RegistrationContext';
 import type { AppInfo } from '@/types/index';
 import { useMemo, useState } from 'react';
+import Swal from 'sweetalert2';
 
 type RegistrationSearchField = 'name' | 'taxId' | 'type';
 
@@ -254,8 +255,16 @@ export default function RegistrationOverview() {
               <button
                 type="button"
                 onClick={() => {
-                  deleteApplication(deleteTarget.id);
+                  const target = deleteTarget;
+                  deleteApplication(target.id);
                   setDeleteTarget(null);
+                  void Swal.fire({
+                    icon: 'success',
+                    title: '成功刪除',
+                    text: `已刪除「${target.name}」申請單（${target.id}）。`,
+                    confirmButtonText: '確定',
+                    confirmButtonColor: '#2563eb',
+                  });
                 }}
                 className="px-4 py-2 rounded-lg font-bold text-white bg-red-600 hover:bg-red-700 transition"
               >

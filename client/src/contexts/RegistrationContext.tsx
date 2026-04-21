@@ -3,7 +3,13 @@ import { AGENTS as INITIAL_AGENTS, type Agent as AggregationAgent } from '@/data
 import type { AppInfo, Contract, StorageDevice } from '@/types/index';
 
 /** 3. 申報計畫單頁內各錨點區塊 */
-export type PlanSection = 'total' | 'load' | 'renewable' | 'storage' | 'cop';
+export type PlanSection =
+  | 'total'
+  | 'load'
+  | 'renewable'
+  | 'contract-transfer'
+  | 'storage'
+  | 'cop';
 
 export type AppMainView =
   | 'registration'

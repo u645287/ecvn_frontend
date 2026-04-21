@@ -48,7 +48,8 @@ const navModules: ModuleItem[] = [
       { id: 'bid-3-1', label: '3.1 總量', view: 'declaration-plan', section: 'total' },
       { id: 'bid-3-2', label: '3.2 再生能源預測', view: 'declaration-plan', section: 'renewable' },
       { id: 'bid-3-3', label: '3.3 負載預測', view: 'declaration-plan', section: 'load' },
-      { id: 'bid-3-4', label: '3.4 儲能計畫', view: 'declaration-plan', section: 'storage' },
+      { id: 'bid-3-4', label: '3.4 合約轉供量', view: 'declaration-plan', section: 'contract-transfer' },
+      { id: 'bid-3-5', label: '3.5 儲能計畫', view: 'declaration-plan', section: 'storage' },
     ],
   },
   {

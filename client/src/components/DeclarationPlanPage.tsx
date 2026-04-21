@@ -60,6 +60,16 @@ function getHourByIndex(index: number): number {
   return index / 4;
 }
 
+/** 合約轉供示意：11:00–13:00 明顯低於負載，表示中午多餘綠電轉儲能／調度，夜尖峰再抵免用電 */
+function contractTransferShapeMultiplier(intervalIndex: number): number {
+  const h = getHourByIndex(intervalIndex);
+  if (h < 10.875) return 1;
+  if (h < 11) return 1 - 0.16 * ((h - 10.875) / 0.125);
+  if (h < 13) return 0.78;
+  if (h < 13.125) return 0.78 + 0.16 * ((h - 13) / 0.125);
+  return 1;
+}
+
 function clampByRange(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   if (value < min) return min;
@@ -228,6 +238,7 @@ export default function DeclarationPlanPage() {
   const [socEditBuffer, setSocEditBuffer] = useState<number[]>([45, 53, 61]);
   const [hiddenSeriesKeys, setHiddenSeriesKeys] = useState<Record<string, boolean>>({});
   const [resourceExpanded, setResourceExpanded] = useState(false);
+  const [agentDetailExpanded, setAgentDetailExpanded] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState('agent-b');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   const csvInputRef = useRef<HTMLInputElement>(null);
@@ -246,13 +257,22 @@ export default function DeclarationPlanPage() {
   }, [currentView, declarationPlanSection, declarationPlanNavSeq]);
 
   const summaryRows = useMemo(() => {
-    return INTERVAL_LABELS.map((time, i) => ({
-      time,
-      gen: sumSeriesAt(store, 'gen', i),
-      load: sumSeriesAt(store, 'load', i),
-      bess: sumSeriesAt(store, 'bess', i),
-    }));
-  }, [store]);
+    const agent = AGENT_PROFILES.find((a) => a.id === selectedAgentId) ?? AGENT_PROFILES[1];
+    const contractCount = Math.max(1, agent.contractCodes.length);
+    return INTERVAL_LABELS.map((time, i) => {
+      const loadVal = sumSeriesAt(store, 'load', i);
+      const shape = contractTransferShapeMultiplier(i);
+      const contractQty =
+        loadVal * (0.94 + Math.min(contractCount, 8) * 0.01) * shape;
+      return {
+        time,
+        gen: sumSeriesAt(store, 'gen', i),
+        load: loadVal,
+        bess: sumSeriesAt(store, 'bess', i),
+        contractQty: Number(contractQty.toFixed(3)),
+      };
+    });
+  }, [store, selectedAgentId]);
 
   const genRows = useMemo(() => {
     return INTERVAL_LABELS.map((time, i) => {
@@ -337,7 +357,6 @@ export default function DeclarationPlanPage() {
 
   const openUpload = (title: string) => {
     setUploadTitle(title);
-    popup('info', '提示', '請上傳 CSV 檔案');
     setUploadOpen(true);
   };
 
@@ -447,7 +466,7 @@ export default function DeclarationPlanPage() {
   };
   const isSeriesHidden = (key: string) => Boolean(hiddenSeriesKeys[key]);
 
-  const firstInterval = summaryRows[0] ?? { gen: 0, load: 0, bess: 0 };
+  const firstInterval = summaryRows[0] ?? { gen: 0, load: 0, bess: 0, contractQty: 0 };
   const surplusKw = Math.max(firstInterval.gen - firstInterval.load, 0);
   const storageChargingKw = Math.max(firstInterval.bess, 0);
   const unstoredSurplusKw = Math.max(surplusKw - storageChargingKw, 0);
@@ -471,17 +490,57 @@ export default function DeclarationPlanPage() {
 
   return (
     <div className="space-y-6 pb-10">
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
-        <div className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm">
-          <p className="text-xs font-bold tracking-wide text-slate-600">申報設定</p>
-          <h2 className="mt-2 text-3xl font-bold text-slate-900">每日申報計劃</h2>
-          <p className="mt-2 text-sm text-slate-700">請選擇代理人與日期，執行 15 分鐘區間申報。</p>
+      <section className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm md:p-8">
+        <div className="flex flex-col gap-8 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold tracking-wide text-slate-600">申報設定</p>
+            <h2 className="mt-2 text-3xl font-bold text-slate-900">每日申報計劃</h2>
+            <p className="mt-2 text-sm text-slate-600">請選擇代理人與日期，執行 15 分鐘區間申報。</p>
 
-          <div className="mt-6 grid grid-cols-1 gap-3 lg:grid-cols-2">
-            <div>
+            <button
+              type="button"
+              onClick={() => setAgentDetailExpanded((v) => !v)}
+              className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-slate-900 hover:text-blue-700 transition"
+            >
+              <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-slate-300 bg-slate-50 text-xs leading-none">
+                {agentDetailExpanded ? '−' : '+'}
+              </span>
+              詳細資訊
+            </button>
+
+            {agentDetailExpanded && (
+              <div className="mt-4 max-w-lg rounded-2xl border border-slate-200 bg-slate-50/80 p-5 text-sm">
+                <dl className="space-y-5">
+                  <div>
+                    <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">代理人名稱</dt>
+                    <dd className="mt-1 font-bold text-slate-900">{selectedAgent.name}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">統編</dt>
+                    <dd className="mt-1 font-bold text-slate-900">{selectedAgent.taxId}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">合約代號</dt>
+                    <dd className="mt-1 space-y-3 font-semibold text-slate-900">
+                      {selectedAgent.contractCodes.map((code) => (
+                        <p key={code}>{code}</p>
+                      ))}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">合約數量</dt>
+                    <dd className="mt-1 font-bold text-slate-900">{selectedAgent.contractCodes.length}</dd>
+                  </div>
+                </dl>
+              </div>
+            )}
+          </div>
+
+          <div className="flex w-full shrink-0 flex-col gap-4 sm:flex-row xl:w-auto xl:min-w-[320px] xl:flex-col xl:gap-4">
+            <div className="min-w-0 flex-1 sm:flex-1 xl:flex-none">
               <label className="mb-2 block text-xs font-bold uppercase text-slate-700">代理人名稱</label>
               <Select value={selectedAgent.id} onValueChange={setSelectedAgentId}>
-                <SelectTrigger className="border-slate-400 bg-white text-slate-900">
+                <SelectTrigger className="w-full border-slate-300 bg-white text-slate-900">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -493,43 +552,14 @@ export default function DeclarationPlanPage() {
                 </SelectContent>
               </Select>
             </div>
-
-            <div>
+            <div className="min-w-0 flex-1 sm:flex-1 xl:flex-none">
               <label className="mb-2 block text-xs font-bold uppercase text-slate-700">申報日期</label>
               <Input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="border-slate-400 bg-white text-slate-900"
+                className="w-full border-slate-300 bg-white text-slate-900"
               />
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-700">代理人資訊</h3>
-          <div className="mt-4 space-y-3 text-sm text-slate-800">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-slate-600">代理人名稱</span>
-              <span className="font-semibold text-right">{selectedAgent.name}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-slate-600">統編</span>
-              <span className="font-semibold">{selectedAgent.taxId}</span>
-            </div>
-            <div className="flex items-start justify-between gap-3">
-              <span className="text-slate-600">合約代號</span>
-              <div className="text-right">
-                {selectedAgent.contractCodes.map((code) => (
-                  <p key={code} className="font-semibold">
-                    {code}
-                  </p>
-                ))}
-              </div>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-slate-600">合約數量</span>
-              <span className="font-semibold">{selectedAgent.contractCodes.length}</span>
             </div>
           </div>
         </div>
@@ -636,7 +666,12 @@ export default function DeclarationPlanPage() {
 
         <div className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm md:p-8">
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <h3 className="text-base font-bold text-slate-900">全資源覆蓋趨勢圖（kW）</h3>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">全資源覆蓋趨勢圖（kW）</h3>
+              <p className="mt-1 text-xs text-slate-600">
+                「合約數量」為示意曲線（kW）：走勢貼近負載，11:00–13:00 較低表示中午將多餘綠電轉入儲能／合約調度；夜尖峰再運用抵免電價。數值隨所選代理人之合約數量略為調整。
+              </p>
+            </div>
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
@@ -689,6 +724,15 @@ export default function DeclarationPlanPage() {
                   strokeWidth={2.2}
                   dot={false}
                   strokeDasharray="5 5"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="contractQty"
+                  hide={isSeriesHidden('contractQty')}
+                  name="合約數量 (示意 kW)"
+                  stroke="#d97706"
+                  strokeWidth={2.2}
+                  dot={false}
                 />
                 <Bar
                   dataKey="bess"
@@ -803,8 +847,22 @@ export default function DeclarationPlanPage() {
         </div>
       </section>
 
+      <section id="declaration-section-contract-transfer" className="scroll-mt-28 space-y-4">
+        <h2 className={sectionTitleClass}>3.4 合約轉供量</h2>
+        <div className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm md:p-8 border-t-4 border-t-amber-500">
+          <h3 className="text-base font-bold text-slate-900">合約轉供與時段策略</h3>
+          <p className="mt-2 text-sm leading-relaxed text-slate-700">
+            本區說明依合約約定之轉供電量與時段安排。與 3.1 總量圖中的「合約數量」示意線呼應：曲線大致跟隨負載，於中午
+            11:00–13:00 明顯較低，代表將多餘再生能源透過儲能或合約機制保留；於夜間尖峰時段再釋出，以配合電價抵免或市場申報策略。
+          </p>
+          <p className="mt-3 text-sm text-slate-600">
+            實際轉供量請以台電／市場介面或後端 API 為準；此處為前端展示與教育說明用。
+          </p>
+        </div>
+      </section>
+
       <section id="declaration-section-storage" className="scroll-mt-28 space-y-4">
-        <h2 className={sectionTitleClass}>3.4 儲能計畫</h2>
+        <h2 className={sectionTitleClass}>3.5 儲能計畫</h2>
         <div className="rounded-2xl border border-slate-300 bg-white p-6 shadow-sm md:p-8 border-t-4 border-t-indigo-600">
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
