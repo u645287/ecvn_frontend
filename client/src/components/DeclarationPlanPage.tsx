@@ -43,6 +43,8 @@ const BESS_MAX_KW = 50;
 const MIDDAY_TRANSFER_REDUCTION_KW = 20;
 const MIDDAY_BESS_EXTRA_CHARGE_KW = 20;
 const EVENING_BESS_EXTRA_DISCHARGE_KW = 20;
+const TRANSFER_GREEN = '#16a34a';
+const TRANSFER_FILL_65 = 'rgba(22, 163, 74, 0.65)';
 
 type ResourceCategory = 'gen' | 'load' | 'bess';
 type ResourceSeries = { id: string; data: number[] };
@@ -1109,9 +1111,10 @@ export default function DeclarationPlanPage() {
                   type="monotone"
                   dataKey="transfer"
                   hide={isSeriesHidden('transfer')}
-                  fill="#16a34a"
-                  fillOpacity={0.65}
+                  fill={TRANSFER_FILL_65}
+                  fillOpacity={1}
                   stroke="none"
+                  baseValue={0}
                   isAnimationActive={false}
                 />
                 <Line
@@ -1119,7 +1122,7 @@ export default function DeclarationPlanPage() {
                   dataKey="transfer"
                   hide={isSeriesHidden('transfer')}
                   name="合約轉供量"
-                  stroke="#16a34a"
+                  stroke={TRANSFER_GREEN}
                   strokeWidth={2.6}
                   dot={false}
                   strokeDasharray="6 4"
