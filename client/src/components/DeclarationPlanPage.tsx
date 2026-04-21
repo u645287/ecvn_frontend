@@ -15,23 +15,10 @@ import {
 } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Slider } from '@/components/ui/slider';
+import type { EChartsOption } from 'echarts';
+import ReactECharts from 'echarts-for-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Swal, { type SweetAlertIcon } from 'sweetalert2';
-import {
-  Area,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ComposedChart,
-  Label,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 
 const INTERVAL_COUNT = 96;
 const GENERATION_MIN_KW = 0;
@@ -44,7 +31,6 @@ const MIDDAY_TRANSFER_REDUCTION_KW = 20;
 const MIDDAY_BESS_EXTRA_CHARGE_KW = 20;
 const EVENING_BESS_EXTRA_DISCHARGE_KW = 20;
 const TRANSFER_GREEN = '#16a34a';
-const TRANSFER_FILL_65 = 'rgba(22, 163, 74, 0.65)';
 
 type ResourceCategory = 'gen' | 'load' | 'bess';
 type ResourceSeries = { id: string; data: number[] };
@@ -274,7 +260,6 @@ export default function DeclarationPlanPage() {
   const [socInitialValues, setSocInitialValues] = useState<number[]>([45, 53, 61]);
   const [socModalOpen, setSocModalOpen] = useState(false);
   const [socEditBuffer, setSocEditBuffer] = useState<number[]>([45, 53, 61]);
-  const [hiddenSeriesKeys, setHiddenSeriesKeys] = useState<Record<string, boolean>>({});
   const [resourceExpanded, setResourceExpanded] = useState(false);
   const [agentDetailExpanded, setAgentDetailExpanded] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState('agent-b');
@@ -388,6 +373,166 @@ export default function DeclarationPlanPage() {
       .filter((bucket) => bucket.ts >= expiryMs)
       .reduce((acc, bucket) => acc + bucket.kwh, 0);
   }, [summaryRows, selectedDate]);
+
+  const baseChartOption = useMemo(
+    () => ({
+      animation: false,
+      grid: { top: 20, right: 12, bottom: 36, left: 44 },
+      legend: {
+        bottom: 4,
+        textStyle: { color: '#0f172a', fontSize: 11 },
+      },
+      tooltip: { trigger: 'axis' as const, axisPointer: { type: 'line' as const } },
+      xAxis: {
+        type: 'category' as const,
+        axisLabel: { color: '#0f172a', fontSize: 10, interval: 7 },
+        axisLine: { lineStyle: { color: '#64748b' } },
+        splitLine: { show: false },
+      },
+      yAxis: {
+        type: 'value' as const,
+        axisLabel: { color: '#0f172a', fontSize: 10 },
+        axisLine: { show: true, lineStyle: { color: '#64748b' } },
+        splitLine: { lineStyle: { color: '#94a3b8', type: 'dashed' } },
+        nameTextStyle: { color: '#0f172a' },
+      },
+    }),
+    []
+  );
+
+  const summaryOption = useMemo<EChartsOption>(
+    () => ({
+      ...baseChartOption,
+      xAxis: { ...(baseChartOption.xAxis as object), data: summaryRows.map((d) => d.time) },
+      yAxis: { ...(baseChartOption.yAxis as object), name: 'kW' },
+      tooltip: {
+        ...baseChartOption.tooltip,
+        formatter: (params: unknown) => {
+          const list = Array.isArray(params) ? params : [params];
+          const first = list[0] as { axisValueLabel?: string } | undefined;
+          const rows = list
+            .map((p) => {
+              const item = p as { marker?: string; seriesName?: string; value?: number | [string, number] };
+              const v = Array.isArray(item.value) ? Number(item.value[1] ?? 0) : Number(item.value ?? 0);
+              return `${item.marker ?? ''}${item.seriesName ?? ''}：${v.toFixed(3)} kW`;
+            })
+            .join('<br/>');
+          return `${first?.axisValueLabel ?? ''}<br/>${rows}`;
+        },
+      },
+      series: [
+        { name: '發電 (kW)', type: 'line', smooth: true, showSymbol: false, lineStyle: { width: 2.2, color: '#0ea5e9' }, data: summaryRows.map((d) => d.gen) },
+        { name: '用電 (kW)', type: 'line', smooth: true, showSymbol: false, lineStyle: { width: 2.2, color: '#ef4444' }, data: summaryRows.map((d) => d.load) },
+        { name: '合約數量', type: 'line', smooth: true, showSymbol: false, lineStyle: { width: 2.2, color: '#16a34a', type: 'dashed' }, areaStyle: { color: 'rgba(22,163,74,0.65)' }, data: summaryRows.map((d) => d.contractQty) },
+        { name: '儲能 (kW)', type: 'bar', itemStyle: { color: '#4f46e5' }, barWidth: 6, data: summaryRows.map((d) => d.bess) },
+      ],
+    }),
+    [baseChartOption, summaryRows]
+  );
+
+  const genOption = useMemo<EChartsOption>(
+    () => ({
+      ...baseChartOption,
+      xAxis: { ...(baseChartOption.xAxis as object), data: genRows.map((d) => String(d.time)) },
+      yAxis: { ...(baseChartOption.yAxis as object), name: 'kW' },
+      series: store.gen.map((obj, i) => ({
+        name: `場號 ${obj.id} (kW)`,
+        type: 'line',
+        smooth: true,
+        showSymbol: false,
+        lineStyle: { width: 2.2, color: GEN_LINE_COLORS[i % GEN_LINE_COLORS.length] },
+        data: genRows.map((r) => Number(r[`g${i}`] ?? 0)),
+      })),
+    }),
+    [baseChartOption, genRows, store.gen]
+  );
+
+  const loadOption = useMemo<EChartsOption>(
+    () => ({
+      ...baseChartOption,
+      xAxis: { ...(baseChartOption.xAxis as object), data: loadRows.map((d) => String(d.time)) },
+      yAxis: { ...(baseChartOption.yAxis as object), name: 'kW' },
+      series: store.load.map((obj, i) => ({
+        name: `用戶 ${obj.id} (kW)`,
+        type: 'line',
+        smooth: true,
+        showSymbol: false,
+        lineStyle: { width: 2.2, color: LOAD_LINE_COLORS[i % LOAD_LINE_COLORS.length] },
+        data: loadRows.map((r) => Number(r[`l${i}`] ?? 0)),
+      })),
+    }),
+    [baseChartOption, loadRows, store.load]
+  );
+
+  const contractOption = useMemo<EChartsOption>(
+    () => ({
+      ...baseChartOption,
+      xAxis: { ...(baseChartOption.xAxis as object), data: contractTransferRows.map((d) => d.time) },
+      yAxis: { ...(baseChartOption.yAxis as object), name: 'kW' },
+      series: [
+        { name: '再生能源合計（參考）', type: 'line', smooth: true, showSymbol: false, lineStyle: { width: 2.2, color: '#2563eb' }, data: contractTransferRows.map((d) => d.genSum) },
+        { name: '負載合計（上限）', type: 'line', smooth: true, showSymbol: false, lineStyle: { width: 2.2, color: '#dc2626' }, data: contractTransferRows.map((d) => d.loadSum) },
+        {
+          name: '合約轉供量',
+          type: 'line',
+          smooth: false,
+          showSymbol: false,
+          lineStyle: { width: 2.6, color: TRANSFER_GREEN, type: 'dashed' },
+          areaStyle: { color: 'rgba(22,163,74,0.65)' },
+          data: contractTransferRows.map((d) => d.transfer),
+        },
+      ],
+    }),
+    [baseChartOption, contractTransferRows]
+  );
+
+  const bessOption = useMemo<EChartsOption>(
+    () => ({
+      ...baseChartOption,
+      xAxis: { ...(baseChartOption.xAxis as object), data: bessRows.map((d) => String(d.time)) },
+      yAxis: { ...(baseChartOption.yAxis as object), name: 'kW' },
+      series: store.bess.map((obj, i) => ({
+        name: `儲能站 ${obj.id} (kW)`,
+        type: 'bar',
+        stack: 'bess',
+        itemStyle: { color: BESS_BAR_COLORS[i % BESS_BAR_COLORS.length] },
+        data: bessRows.map((r) => Number(r[`b${i}`] ?? 0)),
+      })),
+    }),
+    [baseChartOption, bessRows, store.bess]
+  );
+
+  const socOption = useMemo<EChartsOption>(
+    () => ({
+      ...baseChartOption,
+      xAxis: { ...(baseChartOption.xAxis as object), data: bessSocRows.map((d) => String(d.time)) },
+      yAxis: { ...(baseChartOption.yAxis as object), name: 'SOC (%)', min: 0, max: 100 },
+      tooltip: {
+        ...baseChartOption.tooltip,
+        formatter: (params: unknown) => {
+          const list = Array.isArray(params) ? params : [params];
+          const first = list[0] as { axisValueLabel?: string } | undefined;
+          const rows = list
+            .map((p) => {
+              const item = p as { marker?: string; seriesName?: string; value?: number | [string, number] };
+              const v = Array.isArray(item.value) ? Number(item.value[1] ?? 0) : Number(item.value ?? 0);
+              return `${item.marker ?? ''}${item.seriesName ?? ''}：${v.toFixed(1)} %`;
+            })
+            .join('<br/>');
+          return `${first?.axisValueLabel ?? ''}<br/>${rows}`;
+        },
+      },
+      series: store.bess.map((obj, i) => ({
+        name: `SOC ${obj.id} (%)`,
+        type: 'line',
+        smooth: true,
+        showSymbol: false,
+        lineStyle: { width: 2.2, color: BESS_BAR_COLORS[i % BESS_BAR_COLORS.length] },
+        data: bessSocRows.map((r) => Number(r[`soc${i}`] ?? 0)),
+      })),
+    }),
+    [baseChartOption, bessSocRows, store.bess]
+  );
 
   const genResourceTotals = useMemo(
     () =>
@@ -553,14 +698,7 @@ export default function DeclarationPlanPage() {
 
   const chartWrap = 'h-[320px] w-full min-h-[280px]';
   const sectionTitleClass = 'border-b border-slate-300 pb-2 text-lg font-bold text-slate-900';
-  const axisStyle = { fontSize: 10, fill: '#0f172a' };
-  const tooltipFormatter = (value: number) => [`${Number(value).toFixed(3)} kW`, ''];
   const modifyRange = getRangeByCategory(modifyCategory);
-  const toggleLegend = (key: string) => {
-    if (!key) return;
-    setHiddenSeriesKeys((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-  const isSeriesHidden = (key: string) => Boolean(hiddenSeriesKeys[key]);
 
   const firstInterval = summaryRows[0] ?? { gen: 0, load: 0, bess: 0, contractQty: 0 };
   const surplusKw = Math.max(firstInterval.gen - firstInterval.load, 0);
@@ -924,62 +1062,7 @@ export default function DeclarationPlanPage() {
             </div>
           </div>
           <div className={chartWrap}>
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={summaryRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" />
-                <XAxis dataKey="time" tick={axisStyle} interval={7} />
-                <YAxis tick={axisStyle}>
-                  <Label value="kW" angle={-90} position="insideLeft" fill="#0f172a" />
-                </YAxis>
-                <Tooltip
-                  contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', color: '#0f172a' }}
-                  formatter={tooltipFormatter}
-                />
-                <Legend
-                  wrapperStyle={{ fontSize: 12, color: '#0f172a', cursor: 'pointer' }}
-                  onClick={(entry) => toggleLegend((entry as { dataKey?: string }).dataKey ?? '')}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="gen"
-                  hide={isSeriesHidden('gen')}
-                  name="發電 (kW)"
-                  stroke="#0ea5e9"
-                  strokeWidth={2.2}
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="load"
-                  hide={isSeriesHidden('load')}
-                  name="用電 (kW)"
-                  stroke="#ef4444"
-                  strokeWidth={2.2}
-                  dot={false}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="contractQty"
-                  hide={isSeriesHidden('contractQty')}
-                  name="合約數量"
-                  fill="#16a34a"
-                  fillOpacity={0.65}
-                  stroke="#16a34a"
-                  strokeWidth={2.2}
-                  strokeDasharray="6 4"
-                  dot={false}
-                  isAnimationActive={false}
-                />
-                <Bar
-                  dataKey="bess"
-                  hide={isSeriesHidden('bess')}
-                  name="儲能 (kW)"
-                  fill="#4f46e5"
-                  radius={[4, 4, 0, 0]}
-                  barSize={6}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
+            <ReactECharts option={summaryOption} style={{ height: '100%', width: '100%' }} />
           </div>
 
         </div>
@@ -1001,35 +1084,7 @@ export default function DeclarationPlanPage() {
             </div>
           </div>
           <div className={chartWrap}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={genRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" />
-                <XAxis dataKey="time" tick={axisStyle} interval={7} />
-                <YAxis tick={axisStyle}>
-                  <Label value="kW" angle={-90} position="insideLeft" fill="#0f172a" />
-                </YAxis>
-                <Tooltip
-                  contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', color: '#0f172a' }}
-                  formatter={tooltipFormatter}
-                />
-                <Legend
-                  wrapperStyle={{ fontSize: 11, color: '#0f172a', cursor: 'pointer' }}
-                  onClick={(entry) => toggleLegend((entry as { dataKey?: string }).dataKey ?? '')}
-                />
-                {store.gen.map((obj, i) => (
-                  <Line
-                    key={obj.id}
-                    type="monotone"
-                    dataKey={`g${i}`}
-                    hide={isSeriesHidden(`g${i}`)}
-                    name={`場號 ${obj.id} (kW)`}
-                    stroke={GEN_LINE_COLORS[i % GEN_LINE_COLORS.length]}
-                    strokeWidth={2.2}
-                    dot={false}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
+            <ReactECharts option={genOption} style={{ height: '100%', width: '100%' }} />
           </div>
         </div>
       </section>
@@ -1050,35 +1105,7 @@ export default function DeclarationPlanPage() {
             </div>
           </div>
           <div className={chartWrap}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={loadRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" />
-                <XAxis dataKey="time" tick={axisStyle} interval={7} />
-                <YAxis tick={axisStyle}>
-                  <Label value="kW" angle={-90} position="insideLeft" fill="#0f172a" />
-                </YAxis>
-                <Tooltip
-                  contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', color: '#0f172a' }}
-                  formatter={tooltipFormatter}
-                />
-                <Legend
-                  wrapperStyle={{ fontSize: 11, color: '#0f172a', cursor: 'pointer' }}
-                  onClick={(entry) => toggleLegend((entry as { dataKey?: string }).dataKey ?? '')}
-                />
-                {store.load.map((obj, i) => (
-                  <Line
-                    key={obj.id}
-                    type="monotone"
-                    dataKey={`l${i}`}
-                    hide={isSeriesHidden(`l${i}`)}
-                    name={`用戶 ${obj.id} (kW)`}
-                    stroke={LOAD_LINE_COLORS[i % LOAD_LINE_COLORS.length]}
-                    strokeWidth={2.2}
-                    dot={false}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
+            <ReactECharts option={loadOption} style={{ height: '100%', width: '100%' }} />
           </div>
         </div>
       </section>
@@ -1104,65 +1131,7 @@ export default function DeclarationPlanPage() {
             </div>
           </div>
           <div className={chartWrap}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={contractTransferRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" />
-                <XAxis dataKey="time" tick={axisStyle} interval={7} />
-                <YAxis tick={axisStyle}>
-                  <Label value="kW" angle={-90} position="insideLeft" fill="#0f172a" />
-                </YAxis>
-                <Tooltip
-                  contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', color: '#0f172a' }}
-                  formatter={(value: number, name: string) => {
-                    const label =
-                      name === 'transfer'
-                        ? '合約轉供量'
-                        : name === 'genSum'
-                          ? '再生能源合計'
-                          : name === 'loadSum'
-                            ? '負載合計'
-                            : name;
-                    return [`${Number(value).toFixed(3)} kW`, label];
-                  }}
-                />
-                <Legend
-                  wrapperStyle={{ fontSize: 11, color: '#0f172a', cursor: 'pointer' }}
-                  onClick={(entry) => toggleLegend((entry as { dataKey?: string }).dataKey ?? '')}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="genSum"
-                  hide={isSeriesHidden('genSum')}
-                  name="再生能源合計（參考）"
-                  stroke="#2563eb"
-                  strokeWidth={2.2}
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="loadSum"
-                  hide={isSeriesHidden('loadSum')}
-                  name="負載合計（上限）"
-                  stroke="#dc2626"
-                  strokeWidth={2.2}
-                  dot={false}
-                />
-                <Area
-                  type="linear"
-                  dataKey="transfer"
-                  hide={isSeriesHidden('transfer')}
-                  name="合約轉供量"
-                  fill={TRANSFER_GREEN}
-                  fillOpacity={0.65}
-                  stroke={TRANSFER_GREEN}
-                  strokeWidth={2.6}
-                  strokeDasharray="6 4"
-                  dot={false}
-                  baseValue={0}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <ReactECharts option={contractOption} style={{ height: '100%', width: '100%' }} />
           </div>
           <p className="mt-4 text-xs text-slate-600">
             實際轉供請以台電／市場或後端資料為準；圖表依目前 3.2／3.3 示範資料即時計算。
@@ -1189,34 +1158,7 @@ export default function DeclarationPlanPage() {
             </div>
           </div>
           <div className={chartWrap}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={bessRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" />
-                <XAxis dataKey="time" tick={axisStyle} interval={7} />
-                <YAxis tick={axisStyle}>
-                  <Label value="kW" angle={-90} position="insideLeft" fill="#0f172a" />
-                </YAxis>
-                <Tooltip
-                  contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', color: '#0f172a' }}
-                  formatter={tooltipFormatter}
-                />
-                <Legend
-                  wrapperStyle={{ fontSize: 11, color: '#0f172a', cursor: 'pointer' }}
-                  onClick={(entry) => toggleLegend((entry as { dataKey?: string }).dataKey ?? '')}
-                />
-                {store.bess.map((obj, i) => (
-                  <Bar
-                    key={obj.id}
-                    dataKey={`b${i}`}
-                    hide={isSeriesHidden(`b${i}`)}
-                    name={`儲能站 ${obj.id} (kW)`}
-                    stackId="bess"
-                    fill={BESS_BAR_COLORS[i % BESS_BAR_COLORS.length]}
-                    radius={[2, 2, 0, 0]}
-                  />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
+            <ReactECharts option={bessOption} style={{ height: '100%', width: '100%' }} />
           </div>
 
           <div className="mt-8 border-t border-slate-200 pt-6">
@@ -1236,35 +1178,7 @@ export default function DeclarationPlanPage() {
               </div>
             </div>
             <div className={chartWrap}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={bessSocRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" />
-                  <XAxis dataKey="time" tick={axisStyle} interval={7} />
-                  <YAxis tick={axisStyle} domain={[0, 100]}>
-                    <Label value="SOC (%)" angle={-90} position="insideLeft" fill="#0f172a" />
-                  </YAxis>
-                  <Tooltip
-                    contentStyle={{ borderRadius: 12, borderColor: '#94a3b8', color: '#0f172a' }}
-                    formatter={(value: number) => [`${Number(value).toFixed(1)} %`, '']}
-                  />
-                  <Legend
-                    wrapperStyle={{ fontSize: 11, color: '#0f172a', cursor: 'pointer' }}
-                    onClick={(entry) => toggleLegend((entry as { dataKey?: string }).dataKey ?? '')}
-                  />
-                  {store.bess.map((obj, i) => (
-                    <Line
-                      key={`soc-${obj.id}`}
-                      type="monotone"
-                      dataKey={`soc${i}`}
-                      hide={isSeriesHidden(`soc${i}`)}
-                      name={`SOC ${obj.id} (%)`}
-                      stroke={BESS_BAR_COLORS[i % BESS_BAR_COLORS.length]}
-                      strokeWidth={2.2}
-                      dot={false}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
+              <ReactECharts option={socOption} style={{ height: '100%', width: '100%' }} />
             </div>
           </div>
         </div>

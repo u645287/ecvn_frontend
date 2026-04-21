@@ -9,16 +9,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { Agent } from '@/data/agentAggregation';
-import { useId, useMemo, useState } from 'react';
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import type { EChartsOption } from 'echarts';
+import ReactECharts from 'echarts-for-react';
+import { useMemo, useState } from 'react';
 
 /** 參考 2.3 頁面快照：預設表號的示範即時功率與通訊狀態（與主檔表號一致時優先採用） */
 const DEMO_KW_BY_METER: Record<string, { kw: number; ok: boolean }> = {
@@ -81,7 +74,6 @@ function buildRows(agents: Agent[], refreshSeq: number): MeterRow[] {
 
 export default function DashboardRealTimeGeneration() {
   const { agents } = useRegistration();
-  const gradId = useId().replace(/:/g, '');
   const [agentFilter, setAgentFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [lastUpdated, setLastUpdated] = useState(() => new Date());
@@ -163,6 +155,59 @@ export default function DashboardRealTimeGeneration() {
     setRefreshSeq((n) => n + 1);
   };
 
+  const trendOption = useMemo<EChartsOption>(
+    () => ({
+      animation: false,
+      grid: { top: 24, right: 16, bottom: 24, left: 40 },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'line' },
+        formatter: (params: unknown) => {
+          const list = Array.isArray(params) ? params : [params];
+          const first = list[0] as { axisValueLabel?: string } | undefined;
+          const p = list[0] as { value?: number | [string, number] } | undefined;
+          const value = Array.isArray(p?.value) ? Number(p?.value[1] ?? 0) : Number(p?.value ?? 0);
+          return `${first?.axisValueLabel ?? ''}<br/>總發電：${value.toFixed(1)} kW`;
+        },
+      },
+      xAxis: {
+        type: 'category',
+        boundaryGap: false,
+        data: chartData.map((d) => d.label),
+        axisLabel: { color: '#64748b', fontSize: 12 },
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: { color: '#64748b', fontSize: 12 },
+        splitLine: { lineStyle: { color: '#e2e8f0', type: 'dashed' } },
+      },
+      series: [
+        {
+          name: '總發電',
+          type: 'line',
+          smooth: true,
+          showSymbol: false,
+          lineStyle: { width: 3, color: '#0ea5e9' },
+          areaStyle: {
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                { offset: 0, color: 'rgba(56,189,248,0.8)' },
+                { offset: 1, color: 'rgba(56,189,248,0.08)' },
+              ],
+            },
+          },
+          data: chartData.map((d) => Number(d.total.toFixed(1))),
+        },
+      ],
+    }),
+    [chartData]
+  );
+
   return (
     <div className="space-y-6">
       <section className="grid gap-4 xl:grid-cols-[2fr_1fr]">
@@ -204,32 +249,7 @@ export default function DashboardRealTimeGeneration() {
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-sm uppercase tracking-[0.24em] text-slate-500">過去 12 分鐘總發電趨勢</p>
           <div className="mt-6 h-72 w-full min-w-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="#38bdf8" stopOpacity={0.08} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 12 }} />
-                <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
-                <Tooltip
-                  formatter={(v: number) => [`${v} kW`, '總發電']}
-                  labelFormatter={(l) => l}
-                  contentStyle={{ borderRadius: 12, borderColor: '#e2e8f0' }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="total"
-                  stroke="#0ea5e9"
-                  strokeWidth={3}
-                  fillOpacity={1}
-                  fill={`url(#${gradId})`}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <ReactECharts option={trendOption} style={{ height: '100%', width: '100%' }} />
           </div>
         </div>
       </section>
