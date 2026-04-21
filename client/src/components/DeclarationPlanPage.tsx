@@ -894,7 +894,7 @@ export default function DeclarationPlanPage() {
             <div>
               <h3 className="text-base font-bold text-slate-900">合約轉供量趨勢（kW）</h3>
               <p className="mt-1 text-sm leading-relaxed text-slate-700">
-                每 15 分鐘轉供量＝min(再生能源發電合計, 負載合計)，故曲線跟隨 PV／發電形狀且不會高於當下負載。
+                每 15 分鐘轉供量＝min(再生能源發電合計, 負載合計)，故曲線跟隨 PV／發電形狀且不會高於當下負載。橘線為轉供量；虛線為發電合計與負載合計供對照。
               </p>
             </div>
           </div>
@@ -924,44 +924,34 @@ export default function DeclarationPlanPage() {
                   wrapperStyle={{ fontSize: 11, color: '#0f172a', cursor: 'pointer' }}
                   onClick={(entry) => toggleLegend((entry as { dataKey?: string }).dataKey ?? '')}
                 />
-                <Area
-                  type="monotone"
-                  dataKey="genSum"
-                  hide={isSeriesHidden('genSum')}
-                  name="再生能源合計（參考）"
-                  fill="#2563eb"
-                  fillOpacity={0.65}
-                  stroke="#2563eb"
-                  strokeWidth={2.2}
-                  strokeDasharray="6 4"
-                  dot={false}
-                  isAnimationActive={false}
-                />
-                <Area
+                <Line
                   type="monotone"
                   dataKey="loadSum"
                   hide={isSeriesHidden('loadSum')}
                   name="負載合計（上限）"
-                  fill="#dc2626"
-                  fillOpacity={0.65}
-                  stroke="#dc2626"
-                  strokeWidth={2.2}
-                  strokeDasharray="6 4"
+                  stroke="#94a3b8"
+                  strokeWidth={1.6}
                   dot={false}
-                  isAnimationActive={false}
+                  strokeDasharray="4 4"
                 />
-                <Area
+                <Line
+                  type="monotone"
+                  dataKey="genSum"
+                  hide={isSeriesHidden('genSum')}
+                  name="再生能源合計（參考）"
+                  stroke="#22d3ee"
+                  strokeWidth={1.6}
+                  dot={false}
+                  strokeDasharray="6 3"
+                />
+                <Line
                   type="monotone"
                   dataKey="transfer"
                   hide={isSeriesHidden('transfer')}
                   name="合約轉供量"
-                  fill="#16a34a"
-                  fillOpacity={0.65}
-                  stroke="#16a34a"
+                  stroke="#d97706"
                   strokeWidth={2.6}
-                  strokeDasharray="6 4"
                   dot={false}
-                  isAnimationActive={false}
                 />
               </LineChart>
             </ResponsiveContainer>
