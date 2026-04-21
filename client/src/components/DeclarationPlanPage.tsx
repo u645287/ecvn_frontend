@@ -61,16 +61,6 @@ function getHourByIndex(index: number): number {
   return index / 4;
 }
 
-/** 合約轉供示意：11:00–13:00 明顯低於負載，表示中午多餘綠電轉儲能／調度，夜尖峰再抵免用電 */
-function contractTransferShapeMultiplier(intervalIndex: number): number {
-  const h = getHourByIndex(intervalIndex);
-  if (h < 10.875) return 1;
-  if (h < 11) return 1 - 0.16 * ((h - 10.875) / 0.125);
-  if (h < 13) return 0.78;
-  if (h < 13.125) return 0.78 + 0.16 * ((h - 13) / 0.125);
-  return 1;
-}
-
 function clampByRange(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   if (value < min) return min;
@@ -278,22 +268,19 @@ export default function DeclarationPlanPage() {
   }, [currentView, declarationPlanSection, declarationPlanNavSeq]);
 
   const summaryRows = useMemo(() => {
-    const agent = AGENT_PROFILES.find((a) => a.id === selectedAgentId) ?? AGENT_PROFILES[1];
-    const contractCount = Math.max(1, agent.contractCodes.length);
     return INTERVAL_LABELS.map((time, i) => {
+      const genVal = sumSeriesAt(store, 'gen', i);
       const loadVal = sumSeriesAt(store, 'load', i);
-      const shape = contractTransferShapeMultiplier(i);
-      const contractQty =
-        loadVal * (0.94 + Math.min(contractCount, 8) * 0.01) * shape;
+      const contractQty = Math.min(genVal, loadVal);
       return {
         time,
-        gen: sumSeriesAt(store, 'gen', i),
+        gen: genVal,
         load: loadVal,
         bess: sumSeriesAt(store, 'bess', i),
         contractQty: Number(contractQty.toFixed(3)),
       };
     });
-  }, [store, selectedAgentId]);
+  }, [store]);
 
   const genRows = useMemo(() => {
     return INTERVAL_LABELS.map((time, i) => {
@@ -759,7 +746,6 @@ export default function DeclarationPlanPage() {
                   stroke="#ef4444"
                   strokeWidth={2.2}
                   dot={false}
-                  strokeDasharray="5 5"
                 />
                 <Area
                   type="monotone"
@@ -926,32 +912,42 @@ export default function DeclarationPlanPage() {
                 />
                 <Line
                   type="monotone"
-                  dataKey="loadSum"
-                  hide={isSeriesHidden('loadSum')}
-                  name="負載合計（上限）"
-                  stroke="#94a3b8"
-                  strokeWidth={1.6}
-                  dot={false}
-                  strokeDasharray="4 4"
-                />
-                <Line
-                  type="monotone"
                   dataKey="genSum"
                   hide={isSeriesHidden('genSum')}
                   name="再生能源合計（參考）"
-                  stroke="#22d3ee"
-                  strokeWidth={1.6}
+                  stroke="#2563eb"
+                  strokeWidth={2.2}
                   dot={false}
-                  strokeDasharray="6 3"
+                  strokeDasharray="6 4"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="loadSum"
+                  hide={isSeriesHidden('loadSum')}
+                  name="負載合計（上限）"
+                  stroke="#dc2626"
+                  strokeWidth={2.2}
+                  dot={false}
+                  strokeDasharray="6 4"
                 />
                 <Line
                   type="monotone"
                   dataKey="transfer"
                   hide={isSeriesHidden('transfer')}
                   name="合約轉供量"
-                  stroke="#d97706"
+                  stroke="#16a34a"
                   strokeWidth={2.6}
                   dot={false}
+                  strokeDasharray="6 4"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="transfer"
+                  hide={isSeriesHidden('transfer')}
+                  fill="#16a34a"
+                  fillOpacity={0.65}
+                  stroke="none"
+                  isAnimationActive={false}
                 />
               </LineChart>
             </ResponsiveContainer>
