@@ -357,6 +357,41 @@ export default function DashboardAgentAggregation() {
           </div>
         </div>
 
+        <div className="mb-10">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-2xl font-black text-slate-800">資源地理位置總覽</h3>
+              <p className="text-slate-500 mt-1">地圖會同步顯示 A / B / C 三類資產位置，卡片與地圖標記可雙向互動。</p>
+            </div>
+            {highlightedAssetId && (
+              <div className="text-right">
+                <p className="text-sm text-slate-500">目前高亮資源</p>
+                <p className="text-lg font-bold text-blue-700">
+                  {selectedAgentAssets.find((asset) => asset.id === highlightedAssetId)?.name}
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="rounded-3xl overflow-hidden border border-slate-200 shadow-sm">
+            <MapView
+              key={selectedAgent.id}
+              className="h-[260px]"
+              initialCenter={selectedAgentAssets[0]?.fallbackPosition ?? { lat: 23.7, lng: 120.9 }}
+              initialZoom={8}
+              onMapReady={(map) => {
+                mapRef.current = map;
+                setLeafletMap(map);
+              }}
+              onMapUnmount={() => {
+                mapRef.current = null;
+                setLeafletMap(null);
+                markersRef.current.forEach(({ marker }) => marker.remove());
+                markersRef.current.clear();
+              }}
+            />
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3 text-yellow-700 font-bold border-b-2 border-yellow-400 pb-2">
@@ -445,41 +480,6 @@ export default function DashboardAgentAggregation() {
                 目前無儲能調節資產
               </div>
             )}
-          </div>
-        </div>
-
-        <div className="mt-10">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-2xl font-black text-slate-800">資源地理位置總覽</h3>
-              <p className="text-slate-500 mt-1">地圖會同步顯示 A / B / C 三類資產位置，卡片與地圖標記可雙向互動。</p>
-            </div>
-            {highlightedAssetId && (
-              <div className="text-right">
-                <p className="text-sm text-slate-500">目前高亮資源</p>
-                <p className="text-lg font-bold text-blue-700">
-                  {selectedAgentAssets.find((asset) => asset.id === highlightedAssetId)?.name}
-                </p>
-              </div>
-            )}
-          </div>
-          <div className="rounded-3xl overflow-hidden border border-slate-200 shadow-sm">
-            <MapView
-              key={selectedAgent.id}
-              className="h-[520px]"
-              initialCenter={selectedAgentAssets[0]?.fallbackPosition ?? { lat: 23.7, lng: 120.9 }}
-              initialZoom={8}
-              onMapReady={(map) => {
-                mapRef.current = map;
-                setLeafletMap(map);
-              }}
-              onMapUnmount={() => {
-                mapRef.current = null;
-                setLeafletMap(null);
-                markersRef.current.forEach(({ marker }) => marker.remove());
-                markersRef.current.clear();
-              }}
-            />
           </div>
         </div>
       </div>
