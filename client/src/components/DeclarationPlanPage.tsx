@@ -1579,7 +1579,7 @@ export default function DeclarationPlanPage() {
                   <div
                     className={cn(
                       'flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-[#e3d5bc] bg-[#fffdf5] p-4 shadow-[0_12px_35px_rgba(15,23,42,0.18)] sm:p-5',
-                      storageLedgerFlipped ? 'pt-[18%] sm:pt-[16%]' : 'pt-3 sm:pt-4',
+                      storageLedgerFlipped ? 'pt-[8%] sm:pt-[7%]' : 'pt-3 sm:pt-4',
                       storageLedgerFlipped &&
                         'border-[#dccfb5] shadow-[0_12px_35px_rgba(15,23,42,0.16),inset_0_4px_0_rgba(255,255,255,0.65),inset_0_-6px_16px_rgba(70,55,35,0.07),inset_-6px_0_16px_rgba(85,65,40,0.1),inset_0_6px_16px_rgba(85,65,40,0.07)]'
                     )}
