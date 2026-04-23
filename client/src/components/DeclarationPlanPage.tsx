@@ -32,20 +32,37 @@ const MIDDAY_BESS_EXTRA_CHARGE_KW = 20;
 const EVENING_BESS_EXTRA_DISCHARGE_KW = 20;
 const TRANSFER_GREEN = '#16a34a';
 
-const declarationStatusLampSrc = `${import.meta.env.BASE_URL}declaration-status-lamp.png`;
+const base = import.meta.env.BASE_URL;
+const declarationStatusLampSrcByVariant = {
+  green: `${base}declaration-status-lamp.png`,
+  orange: `${base}declaration-status-lamp-orange.png`,
+  red: `${base}declaration-status-lamp-red.png`,
+} as const;
 
-function DeclarationStatusLampIcon({ ledFilter }: { ledFilter?: string }) {
+type DeclarationLampVariant = keyof typeof declarationStatusLampSrcByVariant;
+
+/** 光暈直接貼在燈體外緣，不再使用外層按鈕的 ring／白圓底 */
+const lampEdgeGlowClass: Record<DeclarationLampVariant, string> = {
+  green: 'shadow-[inset_0_2px_5px_rgba(15,23,42,0.14),0_0_12px_rgba(16,185,129,0.55),0_0_26px_rgba(16,185,129,0.28)]',
+  orange:
+    'shadow-[inset_0_2px_5px_rgba(15,23,42,0.14),0_0_12px_rgba(249,115,22,0.5),0_0_26px_rgba(249,115,22,0.26)]',
+  red: 'shadow-[inset_0_2px_5px_rgba(15,23,42,0.14),0_0_12px_rgba(239,68,68,0.55),0_0_26px_rgba(239,68,68,0.28)]',
+};
+
+function DeclarationStatusLampIcon({ variant }: { variant: DeclarationLampVariant }) {
+  const src = declarationStatusLampSrcByVariant[variant];
   return (
-    <span className="relative inline-flex h-[52px] w-[52px] items-center justify-center rounded-full bg-gradient-to-b from-slate-100 to-slate-200 p-[2px] shadow-[inset_0_2px_5px_rgba(15,23,42,0.14)]">
+    <span
+      className={`relative inline-flex h-[52px] w-[52px] items-center justify-center rounded-full bg-gradient-to-b from-slate-100 to-slate-200 p-[2px] ${lampEdgeGlowClass[variant]}`}
+    >
       <img
-        src={declarationStatusLampSrc}
+        src={src}
         alt=""
         width={48}
         height={48}
         decoding="async"
         draggable={false}
-        className="h-[48px] w-[48px] rounded-full object-cover shadow-[inset_0_-2px_6px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.15)]"
-        style={ledFilter ? { filter: ledFilter } : undefined}
+        className="h-[48px] w-[48px] rounded-full object-cover shadow-[inset_0_-2px_6px_rgba(0,0,0,0.12)]"
       />
     </span>
   );
@@ -229,8 +246,13 @@ const SUMMARY_CARD_STATS = [
     icon: 'fas fa-battery-three-quarters',
     accent: 'border-t-violet-600',
     iconColor: 'text-violet-600',
+    /** 滑鼠移到此卡可顯示充／放電允許時段 */
+    showStorageScheduleTooltip: true,
   },
 ] as const;
+
+const STORAGE_SCHEDULE_TOOLTIP_TEXT =
+  '儲能只可以在10:00-14:00充電、放電只可以在16:00-20:00之間';
 
 const AGENT_PROFILES: AgentProfile[] = [
   {
@@ -781,43 +803,31 @@ export default function DeclarationPlanPage() {
   const lampConfig =
     unstoredSurplusKw > 3
       ? {
-          ring: 'ring-red-300',
-          glow: 'shadow-[0_0_20px_rgba(239,68,68,0.55)]',
           label: '危險',
-          ledFilter: 'hue-rotate(105deg) saturate(1.28) brightness(1.03)',
+          lampVariant: 'red' as const,
         }
       : unstoredSurplusKw > 1
         ? {
-            ring: 'ring-orange-300',
-            glow: 'shadow-[0_0_20px_rgba(249,115,22,0.5)]',
             label: '注意',
-            ledFilter: 'hue-rotate(-36deg) saturate(1.32) brightness(1.06)',
+            lampVariant: 'orange' as const,
           }
         : {
-            ring: 'ring-emerald-300',
-            glow: 'shadow-[0_0_20px_rgba(16,185,129,0.5)]',
             label: '正常',
-            ledFilter: undefined,
+            lampVariant: 'green' as const,
           };
   const socLampConfig = socHasRed
     ? {
-        ring: 'ring-red-300',
-        glow: 'shadow-[0_0_20px_rgba(239,68,68,0.55)]',
         label: '異常',
-        ledFilter: 'hue-rotate(105deg) saturate(1.28) brightness(1.03)',
+        lampVariant: 'red' as const,
       }
     : socHasOrange
       ? {
-          ring: 'ring-orange-300',
-          glow: 'shadow-[0_0_20px_rgba(249,115,22,0.5)]',
           label: '警告',
-          ledFilter: 'hue-rotate(-36deg) saturate(1.32) brightness(1.06)',
+          lampVariant: 'orange' as const,
         }
       : {
-          ring: 'ring-emerald-300',
-          glow: 'shadow-[0_0_20px_rgba(16,185,129,0.5)]',
           label: '正常',
-          ledFilter: undefined,
+          lampVariant: 'green' as const,
         };
 
   return (
@@ -908,11 +918,8 @@ export default function DeclarationPlanPage() {
         </div>
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-6">
           <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 md:grid-cols-3">
-            {SUMMARY_CARD_STATS.map((card) => (
-              <div
-                key={card.title}
-                className={`rounded-2xl border border-slate-300 bg-white p-6 shadow-sm border-t-4 ${card.accent}`}
-              >
+            {SUMMARY_CARD_STATS.map((card) => {
+              const cardHeader = (
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-700">{card.title}</p>
@@ -926,6 +933,34 @@ export default function DeclarationPlanPage() {
                     />
                   </div>
                 </div>
+              );
+              return (
+              <div
+                key={card.title}
+                className={`rounded-2xl border border-slate-300 bg-white p-6 shadow-sm border-t-4 ${card.accent}`}
+              >
+                {'showStorageScheduleTooltip' in card && card.showStorageScheduleTooltip ? (
+                  <UiTooltip delayDuration={200}>
+                    <TooltipTrigger asChild>
+                      <div
+                        tabIndex={0}
+                        aria-label={`${card.title}：${STORAGE_SCHEDULE_TOOLTIP_TEXT}`}
+                        className="cursor-help rounded-lg outline-offset-2 focus-visible:outline focus-visible:ring-2 focus-visible:ring-violet-400"
+                      >
+                        {cardHeader}
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="top"
+                      sideOffset={8}
+                      className="max-w-xs border border-slate-300 bg-slate-100 text-slate-900 shadow-xl text-balance"
+                    >
+                      <p className="font-semibold">{STORAGE_SCHEDULE_TOOLTIP_TEXT}</p>
+                    </TooltipContent>
+                  </UiTooltip>
+                ) : (
+                  cardHeader
+                )}
                 <button
                   type="button"
                   onClick={() => setResourceExpanded((prev) => !prev)}
@@ -935,7 +970,8 @@ export default function DeclarationPlanPage() {
                   <i className={`fas ${resourceExpanded ? 'fa-chevron-up' : 'fa-chevron-down'}`} />
                 </button>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="flex shrink-0 flex-row flex-wrap items-start justify-center gap-5 border-t border-slate-200 pt-4 sm:gap-6 lg:flex-nowrap lg:justify-start lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
@@ -946,9 +982,9 @@ export default function DeclarationPlanPage() {
                   <button
                     type="button"
                     aria-label={`餘電燈號：${lampConfig.label}，未儲存餘電 ${unstoredSurplusKw.toFixed(3)} kW`}
-                    className={`flex h-20 w-20 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-200 bg-white ring-2 transition hover:scale-105 hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${lampConfig.ring} ${lampConfig.glow}`}
+                    className="flex h-20 w-20 shrink-0 cursor-help items-center justify-center rounded-full border-0 bg-transparent p-0 shadow-none ring-0 transition hover:scale-105 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
                   >
-                    <DeclarationStatusLampIcon ledFilter={lampConfig.ledFilter} />
+                    <DeclarationStatusLampIcon variant={lampConfig.lampVariant} />
                   </button>
                 </div>
               </TooltipTrigger>
@@ -973,9 +1009,9 @@ export default function DeclarationPlanPage() {
                   <button
                     type="button"
                     aria-label={`儲能SOC燈號：${socLampConfig.label}`}
-                    className={`flex h-20 w-20 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-200 bg-white ring-2 transition hover:scale-105 hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${socLampConfig.ring} ${socLampConfig.glow}`}
+                    className="flex h-20 w-20 shrink-0 cursor-help items-center justify-center rounded-full border-0 bg-transparent p-0 shadow-none ring-0 transition hover:scale-105 focus-visible:outline focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
                   >
-                    <DeclarationStatusLampIcon ledFilter={socLampConfig.ledFilter} />
+                    <DeclarationStatusLampIcon variant={socLampConfig.lampVariant} />
                   </button>
                 </div>
               </TooltipTrigger>
@@ -990,30 +1026,6 @@ export default function DeclarationPlanPage() {
                 </p>
                 <p className="mt-2 font-normal opacity-90">
                   註解：若SOC介於0-20%或是80-100% 顯示橘燈(警告)；介於0-10%、90-100%顯示紅燈(異常)；其餘顯示綠燈正常。
-                </p>
-              </TooltipContent>
-            </UiTooltip>
-
-            <UiTooltip delayDuration={200}>
-              <TooltipTrigger asChild>
-                <div className="flex min-w-[88px] flex-col items-center gap-1.5">
-                  <p className="text-sm font-bold text-slate-900 sm:text-base">儲能時段</p>
-                  <button
-                    type="button"
-                    aria-label="儲能充放電時段說明"
-                    className="flex h-20 w-20 shrink-0 cursor-help items-center justify-center rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-300 shadow-[0_0_20px_rgba(99,102,241,0.45)] transition hover:scale-105 hover:border-indigo-300 hover:bg-indigo-100 focus-visible:outline focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2"
-                  >
-                    <i className="fas fa-clock text-2xl" />
-                  </button>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent
-                side="left"
-                sideOffset={8}
-                className="max-w-xs border border-slate-300 bg-slate-100 text-slate-900 shadow-xl text-balance"
-              >
-                <p className="font-semibold">
-                  儲能只可以在10:00-14:00充電、放電只可以在16:00-20:00之間
                 </p>
               </TooltipContent>
             </UiTooltip>
