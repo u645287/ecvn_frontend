@@ -119,18 +119,18 @@ export default function SettlementPreSettlementPage() {
     const baseDate = new Date();
     return Array.from({ length: 25 }, (_, idx) => {
       const ref = new Date(baseDate);
-      ref.setDate(baseDate.getDate() - Math.floor(idx / 5));
-      ref.setHours((idx * 3) % 24, 0, 0, 0);
+      ref.setDate(baseDate.getDate() - idx);
+      ref.setHours(12, 0, 0, 0);
 
-      const source = hourlyRows[idx % hourlyRows.length];
-      const generation = Number(source.generationActual.toFixed(1));
-      const load = Number(source.loadActual.toFixed(1));
-      const storageIn = Number(Math.max(source.storageActual, 0).toFixed(1));
-      const storageOut = Number(Math.max(-source.storageActual, 0).toFixed(1));
+      const source = hourlyRows[(idx * 2) % hourlyRows.length];
+      const generation = Number((source.generationActual * (0.92 + (idx % 5) * 0.015)).toFixed(1));
+      const load = Number((source.loadActual * (0.9 + (idx % 4) * 0.02)).toFixed(1));
+      const storageIn = Number((Math.max(source.storageActual, 0) * (0.9 + (idx % 3) * 0.04)).toFixed(1));
+      const storageOut = Number((Math.max(-source.storageActual, 0) * (0.88 + (idx % 4) * 0.03)).toFixed(1));
       const contractMatched = Number(Math.min(generation, load * 0.35).toFixed(1));
       const totalMatched = Number((storageOut + contractMatched).toFixed(1));
       return {
-        dateLabel: `${ref.toISOString().slice(0, 10)} ${String(ref.getHours()).padStart(2, '0')}:00`,
+        dateLabel: ref.toISOString().slice(0, 10),
         generation,
         load,
         storageIn,
@@ -140,6 +140,11 @@ export default function SettlementPreSettlementPage() {
       };
     });
   }, [hourlyRows]);
+
+  const sankeyDisplayDateText = useMemo(() => {
+    if (sankeyDatePreset === 'all') return `日期範圍：${sankeyDateStart} ~ ${sankeyDateEnd}`;
+    return `日期：${sankeyDateStart} ~ ${sankeyDateEnd}`;
+  }, [sankeyDateEnd, sankeyDatePreset, sankeyDateStart]);
 
   const filteredSankeyDetailRows = useMemo(() => {
     if (sankeyDatePreset === 'all') return sankeyDetailRows;
@@ -354,61 +359,7 @@ export default function SettlementPreSettlementPage() {
             {enlargeSankey ? '縮小圖表' : '放大圖表'}
           </button>
         </div>
-        <h3 className="text-lg font-bold text-slate-900">4.1 預結算 - 桑基匹配圖</h3>
-        <p className="mt-1 text-xs font-semibold text-slate-800">以單日加總量，呈現發電端 → ECVN合約與調節帳戶 → 合約用戶/儲能時段/儲能餘額/餘電。</p>
-        <div id="sankey-match-chart" className={`mt-4 ${enlargeSankey ? 'h-[560px]' : 'h-[360px]'} rounded-xl border border-slate-200 bg-slate-50 p-2`}>
-          <ReactECharts
-            option={sankeyOption}
-            style={{ height: '100%', width: '100%' }}
-            onEvents={{
-              click: (params: { data?: { name?: string } }) => {
-                if (styleMode === 'c' && params.data?.name === 'ECVN合約與調節帳戶｜儲能調節帳戶') {
-                  setCExpanded((v) => !v);
-                }
-              },
-            }}
-          />
-        </div>
-        <p className="mt-2 text-xs font-semibold text-slate-800">
-          合約履行只流向「合約用戶（匹配成功）」；24 時段節點為「儲能時段價值」，由「儲能調節帳戶」流入。
-        </p>
-        <button
-          type="button"
-          onClick={() => setShowSankeyTable((v) => !v)}
-          className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-800"
-        >
-          {showSankeyTable ? '收合詳細表格' : '展開詳細表格'}
-        </button>
-        {showSankeyTable && <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-100 text-slate-900">
-              <tr>
-                <th className="px-3 py-2 text-left font-bold">中間帳戶</th>
-                <th className="px-3 py-2 text-right font-bold">加總量(kWh)</th>
-                <th className="px-3 py-2 text-left font-bold">說明</th>
-              </tr>
-            </thead>
-            <tbody className="text-slate-900">
-              <tr className="border-t border-slate-200">
-                <td className="px-3 py-2">合約履行</td>
-                <td className="px-3 py-2 text-right tabular-nums">{sankeyModel.summary.totalContract.toFixed(1)}</td>
-                <td className="px-3 py-2">對應右側第一筆「合約用戶（匹配成功）」</td>
-              </tr>
-              <tr className="border-t border-slate-200">
-                <td className="px-3 py-2">儲能調節帳戶</td>
-                <td className="px-3 py-2 text-right tabular-nums">{sankeyModel.summary.totalStorageFlow.toFixed(1)}</td>
-                <td className="px-3 py-2">流向 24 時段用戶端與儲能餘額</td>
-              </tr>
-              <tr className="border-t border-slate-200">
-                <td className="px-3 py-2">未履約餘電</td>
-                <td className="px-3 py-2 text-right tabular-nums">{sankeyModel.summary.totalUnfulfilled.toFixed(1)}</td>
-                <td className="px-3 py-2">流向右側最後一筆「餘電」</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>}
-
-        <div className="mt-5 rounded-2xl border border-slate-300 bg-white p-4 shadow-sm">
+        <div className="mb-5 rounded-2xl border border-slate-300 bg-white p-4 shadow-sm">
           <p className="mb-3 text-sm font-black text-slate-900">桑基匹配明細表（可點日期跳回桑基圖）</p>
           <div className="mb-3 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
             <span className="mr-1 text-xs font-black text-slate-700">日期篩選：</span>
@@ -514,6 +465,61 @@ export default function SettlementPreSettlementPage() {
           </div>
           <p className="mt-2 text-xs font-semibold text-slate-700">一次視窗最多呈現約 15 行，其餘可透過表格內捲動檢視。</p>
         </div>
+        <h3 className="text-lg font-bold text-slate-900">4.1 預結算 - 桑基匹配圖</h3>
+        <p className="mt-1 text-xs font-semibold text-slate-800">以單日加總量，呈現發電端 → ECVN合約與調節帳戶 → 合約用戶/儲能時段/儲能餘額/餘電。</p>
+        <p className="mt-2 text-center text-sm font-bold text-slate-900">{sankeyDisplayDateText}</p>
+        <div id="sankey-match-chart" className={`mt-4 ${enlargeSankey ? 'h-[560px]' : 'h-[360px]'} rounded-xl border border-slate-200 bg-slate-50 p-2`}>
+          <ReactECharts
+            option={sankeyOption}
+            style={{ height: '100%', width: '100%' }}
+            onEvents={{
+              click: (params: { data?: { name?: string } }) => {
+                if (styleMode === 'c' && params.data?.name === 'ECVN合約與調節帳戶｜儲能調節帳戶') {
+                  setCExpanded((v) => !v);
+                }
+              },
+            }}
+          />
+        </div>
+        <p className="mt-2 text-xs font-semibold text-slate-800">
+          合約履行只流向「合約用戶（匹配成功）」；24 時段節點為「儲能時段價值」，由「儲能調節帳戶」流入。
+        </p>
+        <button
+          type="button"
+          onClick={() => setShowSankeyTable((v) => !v)}
+          className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-800"
+        >
+          {showSankeyTable ? '收合詳細表格' : '展開詳細表格'}
+        </button>
+        {showSankeyTable && <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-100 text-slate-900">
+              <tr>
+                <th className="px-3 py-2 text-left font-bold">中間帳戶</th>
+                <th className="px-3 py-2 text-right font-bold">加總量(kWh)</th>
+                <th className="px-3 py-2 text-left font-bold">說明</th>
+              </tr>
+            </thead>
+            <tbody className="text-slate-900">
+              <tr className="border-t border-slate-200">
+                <td className="px-3 py-2">合約履行</td>
+                <td className="px-3 py-2 text-right tabular-nums">{sankeyModel.summary.totalContract.toFixed(1)}</td>
+                <td className="px-3 py-2">對應右側第一筆「合約用戶（匹配成功）」</td>
+              </tr>
+              <tr className="border-t border-slate-200">
+                <td className="px-3 py-2">儲能調節帳戶</td>
+                <td className="px-3 py-2 text-right tabular-nums">{sankeyModel.summary.totalStorageFlow.toFixed(1)}</td>
+                <td className="px-3 py-2">流向 24 時段用戶端與儲能餘額</td>
+              </tr>
+              <tr className="border-t border-slate-200">
+                <td className="px-3 py-2">未履約餘電</td>
+                <td className="px-3 py-2 text-right tabular-nums">{sankeyModel.summary.totalUnfulfilled.toFixed(1)}</td>
+                <td className="px-3 py-2">流向右側最後一筆「餘電」</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>}
+
       </section>
 
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
