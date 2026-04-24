@@ -105,6 +105,83 @@ export default function SettlementPreSettlementPage() {
     [hourlyRows]
   );
 
+  const sankeyModel = useMemo(() => {
+    const leftNodes = hourlyRows.map((row) => `發電端 ${String(row.hour).padStart(2, '0')}:00 (${row.generationActual.toFixed(1)}度)`);
+    const middleContract = 'ECVN合約與調節帳戶｜合約履行';
+    const middleStorage = 'ECVN合約與調節帳戶｜儲能調節帳戶';
+    const middleSurplus = 'ECVN合約與調節帳戶｜未履約餘電';
+    const rightContractUser = '合約用戶（匹配成功）';
+    const rightHourNodes = hourlyRows.map((row) => `用戶端 ${String(row.hour).padStart(2, '0')}:00 (${row.loadActual.toFixed(1)}度)`);
+    const rightStorageBalance = '儲能餘額';
+    const rightSurplus = '餘電';
+
+    const nodes: Array<{ name: string; itemStyle?: { color: string }; label?: { position: 'left' | 'right' | 'inside' } }> = [
+      ...leftNodes.map((name) => ({ name, itemStyle: { color: '#f59e0b' }, label: { position: 'left' as const } })),
+      { name: middleContract, itemStyle: { color: '#4f46e5' }, label: { position: 'inside' as const } },
+      { name: middleStorage, itemStyle: { color: '#7c3aed' }, label: { position: 'inside' as const } },
+      { name: middleSurplus, itemStyle: { color: '#a16207' }, label: { position: 'inside' as const } },
+      { name: rightContractUser, itemStyle: { color: '#2563eb' }, label: { position: 'right' as const } },
+      ...rightHourNodes.map((name) => ({ name, itemStyle: { color: '#3b82f6' }, label: { position: 'right' as const } })),
+      { name: rightStorageBalance, itemStyle: { color: '#10b981' }, label: { position: 'right' as const } },
+      { name: rightSurplus, itemStyle: { color: '#f97316' }, label: { position: 'right' as const } },
+    ];
+
+    const links: Array<{ source: string; target: string; value: number }> = [];
+    let totalContract = 0;
+    let totalStorageFlow = 0;
+    let totalUnfulfilled = 0;
+    let totalStorageBalance = 0;
+    let totalSurplus = 0;
+
+    hourlyRows.forEach((row) => {
+      const left = `發電端 ${String(row.hour).padStart(2, '0')}:00 (${row.generationActual.toFixed(1)}度)`;
+      const rightHour = `用戶端 ${String(row.hour).padStart(2, '0')}:00 (${row.loadActual.toFixed(1)}度)`;
+      const gen = Math.max(row.generationActual, 0);
+      const load = Math.max(row.loadActual, 0);
+      const storageDispatch = Math.max(-row.storageActual, 0);
+      const storageCharge = Math.max(row.storageActual, 0);
+      const contractPart = Math.min(gen, load * 0.35);
+      const storageAccountPart = Math.max(0, gen - contractPart - storageCharge);
+      const unfulfilledPart = Math.max(0, gen - contractPart - storageAccountPart);
+      const userMatched = Math.min(load, contractPart + storageAccountPart + storageDispatch);
+      const storageBalancePart = Math.max(0, storageCharge - storageDispatch * 0.15);
+      const surplusPart = Math.max(0, unfulfilledPart + Math.max(0, gen - userMatched - contractPart));
+
+      totalContract += contractPart;
+      totalStorageFlow += storageAccountPart;
+      totalUnfulfilled += unfulfilledPart;
+      totalStorageBalance += storageBalancePart;
+      totalSurplus += surplusPart;
+
+      links.push({ source: left, target: middleContract, value: Number(contractPart.toFixed(1)) });
+      links.push({ source: left, target: middleStorage, value: Number(storageAccountPart.toFixed(1)) });
+      if (unfulfilledPart > 0.05) {
+        links.push({ source: left, target: middleSurplus, value: Number(unfulfilledPart.toFixed(1)) });
+      }
+
+      links.push({ source: middleContract, target: rightHour, value: Number(Math.min(contractPart, userMatched).toFixed(1)) });
+      links.push({
+        source: middleStorage,
+        target: rightHour,
+        value: Number(Math.max(0, userMatched - Math.min(contractPart, userMatched)).toFixed(1)),
+      });
+    });
+
+    links.push({ source: middleContract, target: rightContractUser, value: Number(totalContract.toFixed(1)) });
+    links.push({ source: middleStorage, target: rightStorageBalance, value: Number(totalStorageBalance.toFixed(1)) });
+    links.push({ source: middleSurplus, target: rightSurplus, value: Number(Math.max(totalSurplus, totalUnfulfilled).toFixed(1)) });
+
+    return {
+      nodes,
+      links: links.filter((l) => l.value > 0.05),
+      summary: {
+        totalContract: Number(totalContract.toFixed(1)),
+        totalStorageFlow: Number(totalStorageFlow.toFixed(1)),
+        totalUnfulfilled: Number(totalUnfulfilled.toFixed(1)),
+      },
+    };
+  }, [hourlyRows]);
+
   const sankeyOption = useMemo<EChartsOption>(
     () => ({
       animation: false,
@@ -113,44 +190,20 @@ export default function SettlementPreSettlementPage() {
         {
           type: 'sankey',
           left: 6,
-          right: 6,
+          right: 170,
           top: 8,
           bottom: 8,
           emphasis: { focus: 'adjacency' },
-          nodeWidth: 20,
+          nodeWidth: 12,
+          nodeGap: 7,
           lineStyle: { color: 'source', curveness: 0.45, opacity: 0.6 },
-          label: { color: '#0f172a', fontSize: 11, fontWeight: 600 },
-          data: [
-            { name: '11:00 發電端 (90度)' },
-            { name: '12:00 發電端 (100度)' },
-            { name: '13:00 發電端 (120度)' },
-            { name: '14:00 發電端 (90度)' },
-            { name: '合約履行量 (40度)' },
-            { name: '儲能調節帳戶 (360度)' },
-            { name: '18:00 用戶端 (130度)' },
-            { name: '19:00 用戶端 (120度)' },
-            { name: '20:00 用戶端 (90度)' },
-            { name: '儲能餘額 (20度)' },
-          ],
-          links: [
-            { source: '11:00 發電端 (90度)', target: '合約履行量 (40度)', value: 10 },
-            { source: '11:00 發電端 (90度)', target: '儲能調節帳戶 (360度)', value: 80 },
-            { source: '12:00 發電端 (100度)', target: '合約履行量 (40度)', value: 10 },
-            { source: '12:00 發電端 (100度)', target: '儲能調節帳戶 (360度)', value: 90 },
-            { source: '13:00 發電端 (120度)', target: '合約履行量 (40度)', value: 10 },
-            { source: '13:00 發電端 (120度)', target: '儲能調節帳戶 (360度)', value: 110 },
-            { source: '14:00 發電端 (90度)', target: '合約履行量 (40度)', value: 10 },
-            { source: '14:00 發電端 (90度)', target: '儲能調節帳戶 (360度)', value: 80 },
-            { source: '合約履行量 (40度)', target: '18:00 用戶端 (130度)', value: 40 },
-            { source: '儲能調節帳戶 (360度)', target: '18:00 用戶端 (130度)', value: 90 },
-            { source: '儲能調節帳戶 (360度)', target: '19:00 用戶端 (120度)', value: 120 },
-            { source: '儲能調節帳戶 (360度)', target: '20:00 用戶端 (90度)', value: 90 },
-            { source: '儲能調節帳戶 (360度)', target: '儲能餘額 (20度)', value: 20 },
-          ],
+          label: { color: '#0f172a', fontSize: 11, fontWeight: 600, overflow: 'breakAll' },
+          data: sankeyModel.nodes,
+          links: sankeyModel.links,
         },
       ],
     }),
-    []
+    [sankeyModel]
   );
 
   const genChartOption = useMemo(
@@ -182,30 +235,34 @@ export default function SettlementPreSettlementPage() {
         <div className="mt-4 h-[360px] rounded-xl border border-slate-200 bg-slate-50 p-2">
           <ReactECharts option={sankeyOption} style={{ height: '100%', width: '100%' }} />
         </div>
+        <p className="mt-2 text-xs font-semibold text-slate-600">
+          左側為 24 時段發電端；中間為「ECVN合約與調節帳戶」三類（合約履行、儲能調節帳戶、未履約餘電）；右側依序為合約用戶（匹配成功）、24 時段用戶端、儲能餘額、餘電。
+        </p>
         <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
           <table className="min-w-full text-sm">
             <thead className="bg-slate-100 text-slate-700">
               <tr>
-                <th className="px-3 py-2 text-left font-bold">時段</th>
-                <th className="px-3 py-2 text-right font-bold">發電端(kWh)</th>
-                <th className="px-3 py-2 text-right font-bold">合約履行(kWh)</th>
-                <th className="px-3 py-2 text-right font-bold">用戶匹配(kWh)</th>
+                <th className="px-3 py-2 text-left font-bold">中間帳戶</th>
+                <th className="px-3 py-2 text-right font-bold">加總量(kWh)</th>
+                <th className="px-3 py-2 text-left font-bold">說明</th>
               </tr>
             </thead>
             <tbody>
-              {[11, 12, 13, 14].map((h) => {
-                const row = hourlyRows[h];
-                const contract = 10;
-                const matched = Math.min(row.generationActual, row.loadActual);
-                return (
-                  <tr key={`sankey-row-${h}`} className="border-t border-slate-200">
-                    <td className="px-3 py-2">{`${String(h).padStart(2, '0')}:00`}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{row.generationActual.toFixed(1)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{contract.toFixed(1)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{matched.toFixed(1)}</td>
-                  </tr>
-                );
-              })}
+              <tr className="border-t border-slate-200">
+                <td className="px-3 py-2">合約履行</td>
+                <td className="px-3 py-2 text-right tabular-nums">{sankeyModel.summary.totalContract.toFixed(1)}</td>
+                <td className="px-3 py-2">對應右側第一筆「合約用戶（匹配成功）」</td>
+              </tr>
+              <tr className="border-t border-slate-200">
+                <td className="px-3 py-2">儲能調節帳戶</td>
+                <td className="px-3 py-2 text-right tabular-nums">{sankeyModel.summary.totalStorageFlow.toFixed(1)}</td>
+                <td className="px-3 py-2">流向 24 時段用戶端與儲能餘額</td>
+              </tr>
+              <tr className="border-t border-slate-200">
+                <td className="px-3 py-2">未履約餘電</td>
+                <td className="px-3 py-2 text-right tabular-nums">{sankeyModel.summary.totalUnfulfilled.toFixed(1)}</td>
+                <td className="px-3 py-2">流向右側最後一筆「餘電」</td>
+              </tr>
             </tbody>
           </table>
         </div>
