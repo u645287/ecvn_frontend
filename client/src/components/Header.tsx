@@ -60,6 +60,8 @@ export default function Header() {
         ? '2.3 即時發電量監控'
         : currentView === 'declaration-plan'
           ? '3. 申報計畫'
+          : currentView === 'settlement-pre'
+            ? '4.1 預結算'
           : registrationScreen === 'overview'
             ? '註冊申請總覽'
             : getStepTitle(step);

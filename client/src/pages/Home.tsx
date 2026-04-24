@@ -9,6 +9,7 @@ import StorageModal from '@/components/StorageModal';
 import DashboardAgentAggregation from '@/components/DashboardAgentAggregation';
 import DashboardRealTimeGeneration from '@/components/DashboardRealTimeGeneration';
 import DeclarationPlanPage from '@/components/DeclarationPlanPage';
+import SettlementPreSettlementPage from '@/components/SettlementPreSettlementPage';
 import RegistrationOverview from '@/components/RegistrationOverview';
 
 function MainContent() {
@@ -35,6 +36,7 @@ function MainContent() {
           {currentView === 'dashboard-agent-aggregation' && <DashboardAgentAggregation />}
           {currentView === 'dashboard-realtime-generation' && <DashboardRealTimeGeneration />}
           {currentView === 'declaration-plan' && <DeclarationPlanPage />}
+          {currentView === 'settlement-pre' && <SettlementPreSettlementPage />}
         </main>
       </div>
 

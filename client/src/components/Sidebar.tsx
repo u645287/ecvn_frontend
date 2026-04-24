@@ -55,7 +55,7 @@ const navModules: ModuleItem[] = [
     icon: 'fas fa-file-invoice-dollar',
     label: '4. 結算作業',
     subItems: [
-      { id: 'set-4-1', label: '4.1 預結算' },
+      { id: 'set-4-1', label: '4.1 預結算', view: 'settlement-pre' },
       { id: 'set-4-2', label: '4.2 月結算' },
     ],
   },

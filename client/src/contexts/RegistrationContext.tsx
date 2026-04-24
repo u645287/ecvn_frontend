@@ -15,7 +15,8 @@ export type AppMainView =
   | 'registration'
   | 'dashboard-agent-aggregation'
   | 'dashboard-realtime-generation'
-  | 'declaration-plan';
+  | 'declaration-plan'
+  | 'settlement-pre';
 
 interface RegistrationState {
   // UI 狀態
