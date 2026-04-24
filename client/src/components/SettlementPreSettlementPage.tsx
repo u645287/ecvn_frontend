@@ -99,6 +99,7 @@ export default function SettlementPreSettlementPage() {
     return d.toISOString().slice(0, 10);
   });
   const [sankeyDateEnd, setSankeyDateEnd] = useState(() => new Date().toISOString().slice(0, 10));
+  const [selectedSankeyDate, setSelectedSankeyDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const allocationRows = useMemo(
     () =>
@@ -141,10 +142,7 @@ export default function SettlementPreSettlementPage() {
     });
   }, [hourlyRows]);
 
-  const sankeyDisplayDateText = useMemo(() => {
-    if (sankeyDatePreset === 'all') return `日期範圍：${sankeyDateStart} ~ ${sankeyDateEnd}`;
-    return `日期：${sankeyDateStart} ~ ${sankeyDateEnd}`;
-  }, [sankeyDateEnd, sankeyDatePreset, sankeyDateStart]);
+  const sankeyDisplayDateText = useMemo(() => `日期：${selectedSankeyDate}`, [selectedSankeyDate]);
 
   const filteredSankeyDetailRows = useMemo(() => {
     if (sankeyDatePreset === 'all') return sankeyDetailRows;
@@ -312,54 +310,8 @@ export default function SettlementPreSettlementPage() {
       </section>
 
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-black text-slate-700">桑基呈現模式：</span>
-          <button
-            type="button"
-            onClick={() => setStyleMode('ab')}
-            className={`rounded-full px-3 py-1 text-xs font-bold ${styleMode === 'ab' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
-          >
-            樣式A+B（推薦）
-          </button>
-          <button
-            type="button"
-            onClick={() => setStyleMode('c')}
-            className={`rounded-full px-3 py-1 text-xs font-bold ${styleMode === 'c' ? 'bg-indigo-700 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
-          >
-            樣式C（互動展開）
-          </button>
-          {styleMode === 'ab' && (
-            <>
-              <button
-                type="button"
-                onClick={() => setGranularity('summary4h')}
-                className={`rounded-full px-3 py-1 text-xs font-bold ${granularity === 'summary4h' ? 'bg-slate-800 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
-              >
-                摘要（每4小時）
-              </button>
-              <button
-                type="button"
-                onClick={() => setGranularity('detail24h')}
-                className={`rounded-full px-3 py-1 text-xs font-bold ${granularity === 'detail24h' ? 'bg-slate-800 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
-              >
-                詳細（24時段）
-              </button>
-            </>
-          )}
-          {styleMode === 'c' && (
-            <span className="text-xs font-semibold text-slate-700">
-              先看摘要，點「儲能調節帳戶」可切換 24 時段展開。
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={() => setEnlargeSankey((v) => !v)}
-            className="ml-auto rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-700"
-          >
-            {enlargeSankey ? '縮小圖表' : '放大圖表'}
-          </button>
-        </div>
-        <div className="mb-5 rounded-2xl border border-slate-300 bg-white p-4 shadow-sm">
+        <h3 className="text-lg font-bold text-slate-900">4.1 預結算 - 桑基匹配圖</h3>
+        <div className="mb-5 mt-4 rounded-2xl border border-slate-300 bg-white p-4 shadow-sm">
           <p className="mb-3 text-sm font-black text-slate-900">桑基匹配明細表（可點日期跳回桑基圖）</p>
           <div className="mb-3 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
             <span className="mr-1 text-xs font-black text-slate-700">日期篩選：</span>
@@ -446,7 +398,12 @@ export default function SettlementPreSettlementPage() {
                         type="button"
                         className="font-semibold text-blue-700 underline-offset-2 hover:underline"
                         onClick={() => {
-                          document.getElementById('sankey-match-chart')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          setSelectedSankeyDate(row.dateLabel);
+                          const anchor = document.getElementById('sankey-date-anchor');
+                          if (anchor) {
+                            const y = anchor.getBoundingClientRect().top + window.scrollY - 88;
+                            window.scrollTo({ top: y, behavior: 'smooth' });
+                          }
                         }}
                       >
                         {row.dateLabel}
@@ -465,9 +422,56 @@ export default function SettlementPreSettlementPage() {
           </div>
           <p className="mt-2 text-xs font-semibold text-slate-700">一次視窗最多呈現約 15 行，其餘可透過表格內捲動檢視。</p>
         </div>
-        <h3 className="text-lg font-bold text-slate-900">4.1 預結算 - 桑基匹配圖</h3>
+
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-black text-slate-700">桑基呈現模式：</span>
+          <button
+            type="button"
+            onClick={() => setStyleMode('ab')}
+            className={`rounded-full px-3 py-1 text-xs font-bold ${styleMode === 'ab' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
+          >
+            樣式A+B（推薦）
+          </button>
+          <button
+            type="button"
+            onClick={() => setStyleMode('c')}
+            className={`rounded-full px-3 py-1 text-xs font-bold ${styleMode === 'c' ? 'bg-indigo-700 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
+          >
+            樣式C（互動展開）
+          </button>
+          {styleMode === 'ab' && (
+            <>
+              <button
+                type="button"
+                onClick={() => setGranularity('summary4h')}
+                className={`rounded-full px-3 py-1 text-xs font-bold ${granularity === 'summary4h' ? 'bg-slate-800 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
+              >
+                摘要（每4小時）
+              </button>
+              <button
+                type="button"
+                onClick={() => setGranularity('detail24h')}
+                className={`rounded-full px-3 py-1 text-xs font-bold ${granularity === 'detail24h' ? 'bg-slate-800 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
+              >
+                詳細（24時段）
+              </button>
+            </>
+          )}
+          {styleMode === 'c' && (
+            <span className="text-xs font-semibold text-slate-700">
+              先看摘要，點「儲能調節帳戶」可切換 24 時段展開。
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => setEnlargeSankey((v) => !v)}
+            className="ml-auto rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-700"
+          >
+            {enlargeSankey ? '縮小圖表' : '放大圖表'}
+          </button>
+        </div>
         <p className="mt-1 text-xs font-semibold text-slate-800">以單日加總量，呈現發電端 → ECVN合約與調節帳戶 → 合約用戶/儲能時段/儲能餘額/餘電。</p>
-        <p className="mt-2 text-center text-sm font-bold text-slate-900">{sankeyDisplayDateText}</p>
+        <p id="sankey-date-anchor" className="mt-2 text-center text-sm font-bold text-slate-900">{sankeyDisplayDateText}</p>
         <div id="sankey-match-chart" className={`mt-4 ${enlargeSankey ? 'h-[560px]' : 'h-[360px]'} rounded-xl border border-slate-200 bg-slate-50 p-2`}>
           <ReactECharts
             option={sankeyOption}
